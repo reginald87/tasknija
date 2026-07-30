@@ -1,0 +1,358 @@
+import { prisma } from '../config/prisma.js';
+import { AppError } from '../middleware/errorHandler.js';
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  refreshTokenSchema,
+  googleSchema,
+} from '../utils/validation.js';
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyToken,
+  createUser,
+  getAuthUserByEmail,
+  comparePassword,
+  hashPassword,
+  generateResetToken,
+  hashToken,
+  findOrCreateOAuthUser,
+  verifyGoogleIdToken,
+} from '../utils/auth.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../utils/email.js';
+import { logger } from '../middleware/logger.js';
+import { getVendorFeatures } from '../utils/subscriptionData.js';
+
+const PASSWORD_RESET_REDIRECT =
+  process.env.PASSWORD_RESET_REDIRECT_URL || 'http://localhost:5173/reset-password';
+
+function genericRegisterMessage() {
+  return {
+    success: true,
+    message:
+      'If your email is new, please check your inbox to verify your account.'
+  };
+}
+
+export async function register(req, res, next) {
+  try {
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { email, password, fullName, role, businessName } = parsed.data;
+
+    // Generic response on duplicate to avoid enumeration.
+    const existing = await getAuthUserByEmail(email);
+    if (existing) {
+      return res.status(200).json(genericRegisterMessage());
+    }
+
+    const profile = await createUser({ email, password, fullName, role });
+
+    // Send a welcome/verification email (no-op if SMTP not configured).
+    try {
+      await sendVerificationEmail({ email, fullName });
+    } catch (mailErr) {
+      req?.log?.warn?.({ err: mailErr }, 'verification email failed');
+    }
+
+    // Vendor approval flow: submit a vendor_verifications row for admin approval.
+    if (role === 'vendor' && businessName) {
+      try {
+        await prisma.vendorVerification.create({
+          data: { user_id: profile.id, business_name: businessName, status: 'pending' }
+        });
+      } catch (verifError) {
+        req?.log?.warn?.({ err: verifError, userId: profile.id }, 'vendor_verifications insert failed');
+      }
+    }
+
+    // Issue tokens immediately so the client can use the account.
+    const accessToken = signAccessToken(profile);
+    const refreshToken = signRefreshToken(profile);
+
+    return res.status(200).json({
+      success: true,
+      message: genericRegisterMessage().message,
+      data: {
+        accessToken,
+        refreshToken,
+        user: { id: profile.id, email: profile.email, role: profile.role },
+        profile
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function login(req, res, next) {
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { email, password } = parsed.data;
+
+    const authUser = await getAuthUserByEmail(email);
+    if (!authUser) {
+      return next(new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.'));
+    }
+
+    const ok = await comparePassword(password, authUser.passwordHash);
+    if (!ok) {
+      return next(new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.'));
+    }
+
+    const profile = await prisma.profile.findUnique({ where: { id: authUser.id } });
+    if (!profile) {
+      return next(new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.'));
+    }
+
+    const accessToken = signAccessToken(profile);
+    const refreshToken = signRefreshToken(profile);
+
+    return res.json({
+      success: true,
+      data: {
+        accessToken,
+        refreshToken,
+        user: { id: profile.id, email: profile.email },
+        profile
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMe(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required.'));
+    }
+
+    const profile = await prisma.profile.findUnique({ where: { id: userId } });
+    if (!profile) {
+      return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required.'));
+    }
+
+    // Surface the vendor's active plan entitlements so the client can gate
+    // UI (analytics, priority_support, api_access, etc.) without re-deriving.
+    const features = profile.role === 'vendor'
+      ? Array.from(await getVendorFeatures(userId))
+      : [];
+
+    return res.json({
+      success: true,
+      data: {
+        user: req.user,
+        profile,
+        features,
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function logout(req, res, next) {
+  try {
+    // JWT is stateless; client discards the token. Server is best-effort.
+    return res.json({ success: true, message: 'Logged out.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function forgotPassword(req, res, next) {
+  try {
+    const parsed = forgotPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { email } = parsed.data;
+
+    const authUser = await getAuthUserByEmail(email);
+    if (authUser) {
+      const token = generateResetToken();
+      const tokenHash = hashToken(token);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await prisma.passwordReset.create({
+        data: { user_id: authUser.id, token_hash: tokenHash, expires_at: expiresAt }
+      });
+      const resetUrl = `${PASSWORD_RESET_REDIRECT}?token=${token}`;
+      try {
+        await sendPasswordResetEmail({ email, resetUrl });
+      } catch (mailErr) {
+        req?.log?.warn?.({ err: mailErr }, 'reset password email failed');
+      }
+    }
+
+    // Always return the same generic response (no enumeration).
+    return res.json({
+      success: true,
+      message:
+        'If an account exists for that email, a reset link has been sent.'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetPassword(req, res, next) {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { token, newPassword } = parsed.data;
+
+    const tokenHash = hashToken(token);
+    const record = await prisma.passwordReset.findUnique({ where: { token_hash: tokenHash } });
+    if (!record || record.used_at || record.expires_at < new Date()) {
+      return next(new AppError(400, 'INVALID_RESET_TOKEN', 'Invalid or expired reset link.'));
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.$transaction([
+      prisma.authUser.update({ where: { id: record.user_id }, data: { passwordHash } }),
+      prisma.passwordReset.update({ where: { id: record.id }, data: { used_at: new Date() } })
+    ]);
+
+    return res.json({ success: true, message: 'Password updated.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function refreshToken(req, res, next) {
+  try {
+    const parsed = refreshTokenSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { refreshToken: token } = parsed.data;
+
+    let payload;
+    try {
+      payload = verifyToken(token);
+    } catch {
+      return next(new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token.'));
+    }
+    if (payload.type !== 'refresh') {
+      return next(new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token.'));
+    }
+
+    const profile = await prisma.profile.findUnique({ where: { id: payload.sub } });
+    if (!profile) {
+      return next(new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token.'));
+    }
+
+    const accessToken = signAccessToken(profile);
+    const newRefreshToken = signRefreshToken(profile);
+
+    return res.json({
+      success: true,
+      data: {
+        accessToken,
+        refreshToken: newRefreshToken,
+        user: { id: profile.id, email: profile.email }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function googleAuth(req, res, next) {
+  try {
+    const parsed = googleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { idToken } = parsed.data;
+
+    let payload;
+    try {
+      payload = await verifyGoogleIdToken(idToken);
+    } catch (verifyErr) {
+      logger.warn?.({ err: verifyErr }, 'google id token verification failed');
+      return next(new AppError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in failed.'));
+    }
+
+    const profile = await findOrCreateOAuthUser({
+      email: payload.email,
+      fullName: payload.name || null,
+      avatarUrl: payload.picture || null,
+      role: 'user',
+    });
+
+    const accessToken = signAccessToken(profile);
+    const refreshToken = signRefreshToken(profile);
+
+    return res.json({
+      success: true,
+      data: {
+        accessToken,
+        refreshToken,
+        user: { id: profile.id, email: profile.email },
+        profile,
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -1,0 +1,33 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment files (NEVER commit secrets)
+.env
+.env.*
+.env.local
+.env.production
+.env.development
+.env.test
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Server runtime artifacts
+server/var/
+server/uploads/
+
+# Tooling / agent scratch
+.kimchi/
+
+# Build outputs
+*.tsbuildinfo
+.vite/

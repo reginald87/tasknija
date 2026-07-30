@@ -1,0 +1,635 @@
+// Prisma schema for TaskNija (migrated from Supabase/Postgres to SQLite).
+// SQLite notes:
+//  - JSON is stored as String (application serializes/parses).
+//  - No native enums; CHECK constraints are applied via migrations/seed validation in code.
+//  - UUIDs are stored as String (we generate with crypto.randomUUID()).
+//  - Decimal money is stored as Float (acceptable for this app's naira amounts; or Int kobo).
+//    We use Float for simplicity and match prior numeric handling.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AuthUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  profile Profile @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@index([email])
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  full_name    String?
+  authUser     AuthUser?
+  phone        String?
+  avatar_url   String?
+  role         String   @default("user") // user | vendor | admin | super_admin
+  is_verified  Boolean  @default(false)
+  priority_support Boolean @default(false) // derived from active subscription plan
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  businesses         Business[]
+  conversationsCust  Conversation[]       @relation("CustomerConversations")
+  conversationsVend  Conversation[]       @relation("VendorConversations")
+  messages           Message[]
+  reviews            Review[]
+  wallets            Wallet[]
+  walletTransactions  WalletTransaction[]
+  vendorVerifications VendorVerification[]
+  withdrawalRequests WithdrawalRequest[]
+  adminActions       AdminAction[]
+  reportsReported    Report[]             @relation("ReportsReported")
+  transactionsCust   Transaction[]        @relation("CustomerTransactions")
+  transactionsVend   Transaction[]        @relation("VendorTransactions")
+  disputesRaised     Dispute[]            @relation("DisputesRaised")
+  disputesAgainst    Dispute[]            @relation("DisputesAgainst")
+  favorites          Favorite[]
+  notifications      Notification[]
+  quotesVendor       Quote[]              @relation("QuoteVendor")
+  quotesCustomer     Quote[]              @relation("QuoteCustomer")
+  workUpdates        WorkUpdate[]
+  vendorSubscriptions VendorSubscription[]
+  passwordResets      PasswordReset[]
+
+  @@index([role])
+  @@index([email])
+}
+
+model Business {
+  id                String   @id @default(uuid())
+  owner_id          String
+  name              String
+  slug              String   @unique
+  description       String?
+  category_id       String?
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  latitude          Float?
+  longitude         Float?
+  phone             String?
+  email             String?
+  website           String?
+  images            String   @default("[]") // JSON array
+  certifications    String   @default("[]") // JSON array
+  is_featured      Boolean  @default(false)
+  is_recommended    Boolean  @default(false)
+  rating_avg        Float    @default(0)
+  rating_count      Int      @default(0)
+  rating_sum        Int      @default(0)
+  verification_status String @default("pending") // pending | verified | rejected
+  verified_at       DateTime?
+  verified_by       String?
+  whatsapp          String?
+  instagram         String?
+  facebook          String?
+  service_terms     String?
+  operating_hours   String?  // JSON
+
+  // Property/listing fields (for property & rental categories)
+  listing_type      String?  // sale | rent | lease
+  price             Float?   // Display/list price
+  price_type        String?  // fixed | negotiable | call_for_price
+  currency          String   @default("NGN")
+  condition         String?  // new | used | refurbished
+
+  // Property-specific
+  property_type     String?  // apartment | duplex | bungalow | terraced | detached | penthouse | land | commercial
+  bedrooms          Int?
+  bathrooms         Int?
+  area_sqm          Float?
+  year_built        Int?
+  furnished         Boolean?
+
+  // Vehicle-specific
+  vehicle_type      String?  // sedan | suv | truck | van | motorcycle | bus
+  fuel_type         String?  // petrol | diesel | electric | hybrid
+  transmission      String?  // automatic | manual
+  mileage           Int?
+  year_of_manufacture Int?
+
+  // Direct-from-owner flag (true = no middleman)
+  is_direct_from_owner Boolean @default(true)
+
+  // Generic extensible attributes (JSON)
+  attributes        String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  owner             Profile            @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  category          Category?          @relation(fields: [category_id], references: [id])
+  reviews           Review[]
+  conversations     Conversation[]
+  transactions      Transaction[]
+  quotes            Quote[]
+  favorites         Favorite[]
+  workProjects      WorkProject[]
+  availability      VendorAvailability[]
+  blockedDates      VendorBlockedDate[]
+
+  @@index([owner_id])
+  @@index([category_id])
+  @@index([verification_status])
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  description  String?
+  type         String   @default("service") // service | property | rental
+  filter_config String? // JSON — defines available filters for this category
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  businesses Business[]
+}
+
+model Country {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  code      String
+  created_at DateTime @default(now())
+
+  states State[]
+}
+
+model State {
+  id         String   @id @default(uuid())
+  name       String
+  slug       String
+  country_id String?
+  created_at DateTime @default(now())
+
+  country Country? @relation(fields: [country_id], references: [id])
+  lgas    Lga[]
+  cities  City[]
+
+  @@unique([slug, country_id])
+}
+
+model Lga {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String
+  state_id  String
+  created_at DateTime @default(now())
+
+  state  State   @relation(fields: [state_id], references: [id], onDelete: Cascade)
+  cities City[]
+
+  @@unique([slug, state_id])
+}
+
+model City {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String
+  state_id  String
+  lga_id    String?
+  latitude  Float?
+  longitude Float?
+  created_at DateTime @default(now())
+
+  state State? @relation(fields: [state_id], references: [id], onDelete: Cascade)
+  lga   Lga?   @relation(fields: [lga_id], references: [id])
+
+  @@unique([slug, state_id])
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  business_id String
+  user_id     String
+  rating      Int
+  comment     String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  user     Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id])
+  @@index([user_id])
+}
+
+model Conversation {
+  id           String   @id @default(uuid())
+  customer_id  String
+  vendor_id    String
+  business_id  String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  customer  Profile    @relation("CustomerConversations", fields: [customer_id], references: [id], onDelete: Cascade)
+  vendor    Profile    @relation("VendorConversations", fields: [vendor_id], references: [id], onDelete: Cascade)
+  business  Business?  @relation(fields: [business_id], references: [id], onDelete: SetNull)
+  messages  Message[]
+  quotes    Quote[]
+  workProjects WorkProject[]
+
+  @@index([customer_id])
+  @@index([vendor_id])
+  @@index([business_id])
+}
+
+model Message {
+  id           String   @id @default(uuid())
+  conversation_id String
+  sender_id    String
+  content      String
+  message_type String   @default("text")
+  attachment_url String?
+  attachments  String?  // JSON array
+  read_at      DateTime?
+  created_at   DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender      Profile      @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id])
+  @@index([sender_id])
+}
+
+model Favorite {
+  id          String   @id @default(uuid())
+  user_id     String
+  business_id String
+  created_at  DateTime @default(now())
+
+  user     Profile  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, business_id])
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  user_id   String   @unique
+  balance   Float    @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user      Profile          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@index([user_id])
+}
+
+model WalletTransaction {
+  id            String   @id @default(uuid())
+  wallet_id     String
+  user_id       String
+  type          String // deposit | withdrawal | escrow_hold | escrow_release | refund | fee | etc.
+  amount        Float
+  balance_before Float?
+  balance_after  Float?
+  reference_id  String?
+  reference_type String?
+  description   String?
+  created_at    DateTime @default(now())
+
+  wallet Wallet @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([reference_id, reference_type])
+  @@index([user_id])
+}
+
+model Transaction {
+  id              String   @id @default(uuid())
+  customer_id     String
+  vendor_id       String
+  business_id     String?
+  amount          Float
+  platform_fee    Float    @default(0)
+  status          String   @default("escrow") // escrow | disputed | completed | released | cancelled
+  quote_id        String?
+  milestones_enabled Boolean @default(false)
+  total_milestones   Int    @default(0)
+  completed_milestones Int  @default(0)
+  held_at         DateTime?
+  released_at     DateTime?
+  completed_at    DateTime?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  customer Profile         @relation("CustomerTransactions", fields: [customer_id], references: [id], onDelete: Cascade)
+  vendor   Profile         @relation("VendorTransactions", fields: [vendor_id], references: [id], onDelete: Cascade)
+  business Business?       @relation(fields: [business_id], references: [id], onDelete: SetNull)
+  milestones EscrowMilestone[]
+  disputes   Dispute[]
+
+  @@index([customer_id])
+  @@index([vendor_id])
+  @@index([business_id])
+  @@index([status])
+}
+
+model EscrowMilestone {
+  id           String   @id @default(uuid())
+  transaction_id String
+  name         String
+  amount       Float
+  status       String   @default("pending") // pending | held | completed | released | cancelled
+  platform_fee Float    @default(0)
+  held_at      DateTime?
+  completed_at DateTime?
+  released_at  DateTime?
+  cancelled_at DateTime?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  transaction Transaction @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+
+  @@index([transaction_id])
+  @@index([status])
+}
+
+model Dispute {
+  id             String   @id @default(uuid())
+  transaction_id String?
+  business_id    String?
+  raised_by      String
+  raised_against String
+  reason         String
+  description    String?
+  status         String   @default("open") // open | reviewing | resolved | dismissed
+  resolution     String?
+  resolved_by    String?
+  resolved_at    DateTime?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  transaction Transaction? @relation(fields: [transaction_id], references: [id], onDelete: SetNull)
+  raisedBy    Profile     @relation("DisputesRaised", fields: [raised_by], references: [id], onDelete: Cascade)
+  raisedAgainst Profile    @relation("DisputesAgainst", fields: [raised_against], references: [id], onDelete: Cascade)
+
+  @@index([transaction_id])
+  @@index([raised_by])
+  @@index([raised_against])
+  @@index([status])
+}
+
+model VendorVerification {
+  id           String   @id @default(uuid())
+  user_id      String
+  business_name String?
+  status       String   @default("pending") // pending | approved | rejected
+  reviewed_by  String?
+  reviewed_at  DateTime?
+  rejection_reason String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([status])
+}
+
+model WithdrawalRequest {
+  id            String   @id @default(uuid())
+  user_id       String
+  amount        Float
+  bank_name     String?
+  account_number String
+  account_name  String?
+  bank_code     String?
+  status        String   @default("pending") // pending | approved | rejected | completed
+  paystack_reference String?
+  reviewed_by   String?
+  reviewed_at   DateTime?
+  note          String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  user_id   String
+  type      String
+  title     String
+  body      String
+  data      String?  // JSON
+  link      String?
+  read_at   DateTime?
+  sent_at   DateTime @default(now())
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([read_at])
+}
+
+model Quote {
+  id               String   @id @default(uuid())
+  conversation_id  String
+  vendor_id        String
+  customer_id      String
+  business_id      String?
+  title            String
+  description      String?
+  amount           Float
+  terms            String?  // JSON (may embed milestones marker)
+  status           String   @default("pending") // pending | quoted | accepted | rejected | cancelled
+  accepted_at      DateTime?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  vendor      Profile      @relation("QuoteVendor", fields: [vendor_id], references: [id], onDelete: Cascade)
+  customer    Profile      @relation("QuoteCustomer", fields: [customer_id], references: [id], onDelete: Cascade)
+  business    Business?    @relation(fields: [business_id], references: [id], onDelete: SetNull)
+
+  @@index([conversation_id])
+  @@index([vendor_id])
+  @@index([customer_id])
+  @@index([status])
+}
+
+model SubscriptionPackage {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  features    String   @default("[]") // JSON array
+  prices      String   // JSON { quarterly, biannually, annually }
+  recommended Boolean  @default(false)
+  active      Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  vendorSubscriptions VendorSubscription[]
+}
+
+model VendorSubscription {
+  id            String   @id @default(uuid())
+  vendor_id     String
+  package_id    String?
+  package_name  String?
+  billing_cycle String
+  amount        Float    @default(0)
+  amount_paid   Float    @default(0)
+  status        String   @default("pending") // pending | active | expired | rejected
+  payment_reference String?
+  starts_at     DateTime?
+  expires_at    DateTime?
+  verified_by   String?
+  verified_at   DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  vendor  Profile            @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+  package SubscriptionPackage? @relation(fields: [package_id], references: [id])
+
+  @@index([vendor_id])
+  @@index([status])
+}
+
+model WorkProject {
+  id              String   @id @default(uuid())
+  conversation_id String
+  business_id     String?
+  title           String
+  description      String?
+  status          String?
+  progress        Int?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  business    Business?   @relation(fields: [business_id], references: [id], onDelete: SetNull)
+  updates     WorkUpdate[]
+
+  @@index([conversation_id])
+}
+
+model WorkUpdate {
+  id          String   @id @default(uuid())
+  project_id  String
+  message     String
+  images      String?  // JSON array
+  created_by  String
+  created_at  DateTime @default(now())
+
+  project WorkProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  creator Profile     @relation(fields: [created_by], references: [id], onDelete: Cascade)
+
+  @@index([project_id])
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  reporter_id String
+  target_type String   // business | user | review
+  target_id   String
+  reason      String
+  status      String   @default("open") // open | resolved | dismissed
+  admin_note  String?
+  resolved_by String?
+  resolved_at DateTime?
+  created_at  DateTime @default(now())
+
+  reporter Profile @relation("ReportsReported", fields: [reporter_id], references: [id], onDelete: Cascade)
+
+  @@index([reporter_id])
+  @@index([status])
+}
+
+model VendorAvailability {
+  id           String   @id @default(uuid())
+  business_id  String
+  day_of_week  Int
+  start_time   String?
+  end_time     String?
+  is_available Boolean  @default(true)
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id])
+}
+
+model VendorBlockedDate {
+  id           String   @id @default(uuid())
+  business_id  String
+  blocked_date String
+  reason       String?
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id])
+}
+
+model PlatformConfig {
+  key        String   @id
+  value      String   // JSON-encoded value
+  updated_by String?
+  updated_at DateTime @default(now())
+}
+
+model AdminAction {
+  id          String   @id @default(uuid())
+  admin_id    String
+  action      String
+  target_type String?
+  target_id   String?
+  metadata    String?  // JSON
+  created_at  DateTime @default(now())
+
+  admin Profile @relation(fields: [admin_id], references: [id], onDelete: Cascade)
+
+  @@index([admin_id])
+}
+
+model IdempotencyKey {
+  key        String
+  user_id    String
+  endpoint   String?
+  response   String   // JSON
+  created_at DateTime @default(now())
+
+  @@id([key, user_id])
+}
+
+model FileUpload {
+  id           String   @id @default(uuid())
+  user_id      String
+  original_name String
+  stored_name  String
+  mime         String
+  size         Int
+  uploaded_at  DateTime @default(now())
+}
+
+model PasswordReset {
+  id         String   @id @default(uuid())
+  user_id    String
+  token_hash String
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime @default(now())
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([token_hash])
+  @@index([user_id])
+}
