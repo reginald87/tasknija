@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [features, setFeatures] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // On mount, if we already have a stored access token, hydrate the session
@@ -22,10 +23,11 @@ export function AuthProvider({ children }) {
       try {
         const res = await api.get('/auth/me');
         if (cancelled) return;
-        if (res?.success && res?.data) {
-          setUser(res.data.user);
-          setProfile(res.data.profile);
-        } else {
+         if (res?.success && res?.data) {
+           setUser(res.data.user);
+           setProfile(res.data.profile);
+           setFeatures(Array.isArray(res.data.features) ? res.data.features : []);
+         } else {
           api.clearTokens();
         }
       } catch {
@@ -45,6 +47,7 @@ export function AuthProvider({ children }) {
     if (data?.refreshToken) api.setRefreshToken(data.refreshToken);
     if (data?.user) setUser(data.user);
     if (data?.profile) setProfile(data.profile);
+    if (Array.isArray(data?.features)) setFeatures(data.features);
   }
 
   async function signUp(email, password, fullName, role = 'user', businessName, propertyDetails = {}) {
@@ -69,27 +72,27 @@ export function AuthProvider({ children }) {
         const message = res?.error?.message || 'Invalid email or password.';
         return { data: null, error: { message } };
       }
-      const { accessToken, refreshToken, user, profile } = res.data;
-      await syncFromLogin({ accessToken, refreshToken, user, profile });
-      return { data: { session: { access_token: accessToken, refresh_token: refreshToken }, user, profile }, error: null };
-    } catch (err) {
-      const message = err?.status === 401 ? 'Invalid email or password.' : (err?.message || 'Sign in failed.');
-      return { data: null, error: { message, code: err?.code, details: err?.details } };
-    }
-  }
+       const { accessToken, refreshToken, user, profile, features } = res.data;
+       await syncFromLogin({ accessToken, refreshToken, user, profile, features });
+       return { data: { session: { access_token: accessToken, refresh_token: refreshToken }, user, profile, features }, error: null };
+     } catch (err) {
+       const message = err?.status === 401 ? 'Invalid email or password.' : (err?.message || 'Sign in failed.');
+       return { data: null, error: { message, code: err?.code, details: err?.details } };
+     }
+   }
 
-  // Verify a 6-digit email code; on success the account is activated and the
-  // user is signed in directly.
-  async function verifyEmailAndSignIn(email, code) {
-    try {
-      const res = await api.post('/auth/verify-email', { email, code });
-      if (!res?.success) {
-        const message = res?.error?.message || 'Verification failed.';
-        return { data: null, error: { message } };
-      }
-      const { accessToken, refreshToken, user, profile } = res.data;
-      await syncFromLogin({ accessToken, refreshToken, user, profile });
-      return { data: { user, profile }, error: null };
+   // Verify a 6-digit email code; on success the account is activated and the
+   // user is signed in directly.
+   async function verifyEmailAndSignIn(email, code) {
+     try {
+       const res = await api.post('/auth/verify-email', { email, code });
+       if (!res?.success) {
+         const message = res?.error?.message || 'Verification failed.';
+         return { data: null, error: { message } };
+       }
+       const { accessToken, refreshToken, user, profile, features } = res.data;
+       await syncFromLogin({ accessToken, refreshToken, user, profile, features });
+       return { data: { user, profile, features }, error: null };
     } catch (err) {
       return { data: null, error: { message: err?.message || 'Verification failed.', code: err?.code } };
     }
@@ -124,9 +127,9 @@ export function AuthProvider({ children }) {
         const message = res?.error?.message || 'Google sign-in failed.';
         return { data: null, error: { message } };
       }
-      const { accessToken, refreshToken, user, profile } = res.data;
-      await syncFromLogin({ accessToken, refreshToken, user, profile });
-      return { data: { session: { access_token: accessToken, refresh_token: refreshToken }, user, profile }, error: null };
+       const { accessToken, refreshToken, user, profile, features } = res.data;
+       await syncFromLogin({ accessToken, refreshToken, user, profile, features });
+       return { data: { session: { access_token: accessToken, refresh_token: refreshToken }, user, profile, features }, error: null };
     } catch (err) {
       const msg = err?.message || '';
       if (msg.includes('FedCM') || msg.includes('403') || msg.includes('accounts.google.com')) {
@@ -142,13 +145,14 @@ export function AuthProvider({ children }) {
     } catch {
       /* best-effort */
     }
-    api.clearTokens();
-    setUser(null);
-    setProfile(null);
-  }
+   api.clearTokens();
+     setUser(null);
+     setProfile(null);
+     setFeatures([]);
+   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithGoogle, verifyEmailAndSignIn, resendVerificationEmail, signOut }}>
+    <AuthContext.Provider value={{ user, profile, features, loading, signUp, signIn, signInWithGoogle, verifyEmailAndSignIn, resendVerificationEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );

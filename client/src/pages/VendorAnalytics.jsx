@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api.js';
 import Loading from '../components/common/Loading.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
@@ -110,6 +111,7 @@ function formatCurrency(n) {
 }
 
 export default function VendorAnalytics() {
+  const { features } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [overview, setOverview] = useState(null);
   const [revenue, setRevenue] = useState(null);
@@ -149,6 +151,17 @@ export default function VendorAnalytics() {
   };
 
   useEffect(() => { load();   }, [period]);
+
+  if (!features.includes('analytics')) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', textAlign: 'center' }}>
+        <EmptyState icon="🔒" title="Analytics requires a Pro or Enterprise plan" message="Upgrade your subscription to access vendor analytics, revenue tracking, and customer insights." />
+        <Link to="/vendor-dashboard/subscription" style={{ marginTop: 16, padding: '10px 24px', background: 'var(--color-primary)', color: '#fff', borderRadius: 'var(--radius)', textDecoration: 'none', fontWeight: 600 }}>
+          Manage Subscription
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) return <Loading />;
   if (error) return <ErrorState message={error.message} onRetry={load} />;

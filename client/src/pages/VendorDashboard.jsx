@@ -243,7 +243,7 @@ function PortfolioView({ businesses, onEdit, onDelete, onAvailability, availabil
 }
 
 function VendorDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, features } = useAuth();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -631,10 +631,18 @@ function VendorDashboard() {
         );
       })}
       <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 8, paddingTop: 8 }}>
-        <Link to="/analytics" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', color: 'var(--color-text)', fontWeight: 500, fontSize: '0.88rem' }}>
-          <TrendingUp size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-          Analytics
-        </Link>
+        {features.includes('analytics') ? (
+          <Link to="/analytics" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', color: 'var(--color-text)', fontWeight: 500, fontSize: '0.88rem' }}>
+            <TrendingUp size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+            Analytics
+          </Link>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', fontSize: '0.88rem', color: 'var(--color-text-muted)' }}>
+            <TrendingUp size={18} style={{ flexShrink: 0 }} />
+            Analytics
+            <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#f59e0b' }}>🔒 Pro+</span>
+          </div>
+        )}
         <Link to="/availability" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', color: 'var(--color-text)', fontWeight: 500, fontSize: '0.88rem' }}>
           <Calendar size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
           Availability
@@ -743,9 +751,15 @@ function VendorDashboard() {
                     <button onClick={() => { if (!showForm) resetForm(); setShowForm(!showForm); setActiveSection('businesses'); }} style={{ ...btnPrimary, justifyContent: 'center' }}>
                       <Plus size={15} /> {showForm ? 'Cancel' : 'Add New Business'}
                     </button>
-                    <Link to="/analytics" style={{ ...btnOutline, justifyContent: 'center', textDecoration: 'none' }}>
-                      <TrendingUp size={14} /> View Analytics
-                    </Link>
+                    {features.includes('analytics') ? (
+                      <Link to="/analytics" style={{ ...btnOutline, justifyContent: 'center', textDecoration: 'none' }}>
+                        <TrendingUp size={14} /> View Analytics
+                      </Link>
+                    ) : (
+                      <button disabled style={{ ...btnOutline, justifyContent: 'center', opacity: 0.5, cursor: 'not-allowed' }}>
+                        <TrendingUp size={14} /> Analytics (Upgrade Required)
+                      </button>
+                    )}
                     <Link to="/availability" style={{ ...btnOutline, justifyContent: 'center', textDecoration: 'none' }}>
                       <Calendar size={14} /> Manage Availability
                     </Link>
@@ -1106,13 +1120,26 @@ function VendorDashboard() {
                     );
                   })()}
                   {mySub.status === 'pending' && <p style={{ fontSize: '0.85rem', color: '#f59e0b' }}>Waiting for admin to verify payment.</p>}
-                  {mySub.status === 'rejected' && <p style={{ fontSize: '0.85rem', color: '#dc2626' }}>Your subscription payment was rejected. Contact support or subscribe again.</p>}
-                </div>
-              ) : (
-                <p style={{ color: 'var(--color-text-muted)', marginBottom: 16 }}>You have no active subscription. Choose a package below.</p>
-              )}
+                   {mySub.status === 'rejected' && <p style={{ fontSize: '0.85rem', color: '#dc2626' }}>Your subscription payment was rejected. Contact support or subscribe again.</p>}
+                   {mySub.status === 'active' && mySub.package_name && (
+                     <div style={{ marginTop: 12, padding: 12, background: 'var(--color-bg)', borderRadius: 'var(--radius-sm)' }}>
+                       <p style={{ fontSize: '0.82rem', fontWeight: 600, margin: '0 0 8px' }}>Your Plan Features</p>
+                       <ul style={{ fontSize: '0.8rem', paddingLeft: 16, margin: 0, lineHeight: 1.8 }}>
+                         {(() => {
+                           const pkg = subPackages.find(p => p.id === mySub.package_id);
+                           return (pkg?.features || []).map((f, i) => (
+                             <li key={i} style={{ color: '#16a34a' }}>✓ {f}</li>
+                           ));
+                         })()}
+                       </ul>
+                     </div>
+                   )}
+                 </div>
+               ) : (
+                 <p style={{ color: 'var(--color-text-muted)', marginBottom: 16 }}>You have no active subscription. Choose a package below.</p>
+               )}
 
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 12 }}>Available Packages</h3>
+               <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 12 }}>Available Packages</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, marginBottom: 20 }}>
                 {subPackages.map(pkg => (
                   <div
