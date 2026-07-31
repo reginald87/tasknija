@@ -166,7 +166,7 @@ export async function getAll(req, res, next) {
     if (featured === 'true') where.is_featured = true;
     if (recommended === 'true') where.is_recommended = true;
     if (verified === 'true') where.verification_status = 'verified';
-    if (city && city !== 'All Nigeria') where.city = { contains: city, mode: 'insensitive' };
+    if (city && city !== 'All Nigeria') where.city = { contains: city };
     if (category) {
       const cat = await prisma.category.findUnique({ where: { slug: category }, select: { id: true } });
       if (!cat) throw new AppError(404, 'CATEGORY_NOT_FOUND', `Category '${category}' does not exist.`);
@@ -174,9 +174,9 @@ export async function getAll(req, res, next) {
     }
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { city: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
+        { description: { contains: search } },
+        { city: { contains: search } },
       ];
     }
     // Property/listing specific filters
