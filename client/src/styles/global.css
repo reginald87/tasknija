@@ -3848,6 +3848,8 @@ ul, ol {
    Responsive - 768px
    =========================== */
 @media (max-width: 768px) {
+  :root { --header-height: 104px; }
+
   html, body {
     overflow-x: hidden;
     max-width: 100%;
@@ -3875,10 +3877,13 @@ ul, ol {
   }
 
   .header-inner {
-    padding: 0 8px;
-    height: 56px;
+    padding: 8px 10px;
+    height: auto;
+    min-height: 56px;
     max-width: 100%;
     overflow-x: hidden;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   .logo-icon {
@@ -3890,9 +3895,18 @@ ul, ol {
     font-size: 1.1rem;
   }
 
-  .header-location-selector,
+  .header-actions {
+    order: 1;
+  }
+
+  .header-location-selector {
+    order: 2;
+  }
+
   .header-search-form {
-    display: none !important;
+    order: 2;
+    flex: 1 1 auto;
+    max-width: 100%;
   }
 
   .header-actions {
@@ -4115,8 +4129,8 @@ ul, ol {
   }
 
   .location-dropdown {
-    width: 100%;
-    max-width: 100%;
+    width: 260px;
+    max-width: 90vw;
   }
 
   /* ===== Mobile: full-height tabbed workspace ===== */
@@ -4422,4 +4436,14 @@ button, .btn, [role="button"], input[type="checkbox"], input[type="radio"] {
 /* Desktop: persistent sidebar */
 @media (min-width: 769px) {
   .sidebar-drawer-overlay { display: none; }
+}
+
+/* Keep header controls compact on mobile (neutralize global touch-target padding) */
+@media (max-width: 768px) {
+  .header-inner button,
+  .header-inner .btn {
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
 }
