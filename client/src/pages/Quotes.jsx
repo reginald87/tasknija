@@ -6,10 +6,10 @@ import api from '../services/api';
 import EmptyState from '../components/common/EmptyState';
 import Alert from '../components/common/Alert';
 import Loading from '../components/common/Loading';
-import { MessageSquare, FileText, Clock, CheckCircle, XCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { MessageSquare, FileText, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 function Quotes() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);

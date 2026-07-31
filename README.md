@@ -206,9 +206,9 @@ When the database is lost/corrupted and needs to be restored:
 ## Architecture
 
 - **Server**: Node.js + Express, ESM. ESM-native config (`import.meta.url`).
-- **Database**: Supabase (Postgres). Access via the service-role client server-side; never expose the service key to the browser.
-- **Auth**: Supabase Auth (`supabase.auth.signUp` / `signInWithPassword`). Tokens passed as `Authorization: Bearer …`.
-- **Money**: All wallet and escrow mutations go through Postgres functions (`atomic_wallet_credit`, `atomic_wallet_update`, `release_milestone_to_vendor`). Controllers are responsible for authorization; SQL functions are responsible for atomicity.
+- **Database**: Prisma ORM over SQLite (`server/prisma/dev.db`). Reference data (Country/State/LGA/City) is seeded from `server/prisma/locationData.js`; run `npm run seed -w server` to (re)apply.
+- **Auth**: Custom JWT (access 7d + refresh 30d) with email OTP verification and optional Google OAuth. Tokens passed as `Authorization: Bearer …`.
+- **Money**: Paystack hosted payments (initialize/verify + verified webhook). Wallet and escrow mutations go through atomic JS helpers (`atomicWalletCredit`, `holdEscrow`, `releaseMilestoneToVendor`). Controllers are responsible for authorization; the helpers are responsible for atomicity.
 - **Logging**: `pino` + `pino-http`. JSON in production, pretty-printed in development. Sensitive fields are redacted.
 - **Validation**: `zod` schemas per controller, wrapped in a `validate()` middleware.
 - **Idempotency**: `Idempotency-Key` header on `POST/PUT/PATCH`. Cached responses are stored in the `idempotency_keys` table and replayed on retry.

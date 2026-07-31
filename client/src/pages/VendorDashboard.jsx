@@ -5,15 +5,13 @@ import { useToast } from '../context/ToastContext';
 import api from '../services/api';
 import FundWalletModal from '../components/payment/FundWalletModal';
 import LocationPicker from '../components/LocationPicker';
-import Loading from '../components/common/Loading';
-import EmptyState from '../components/common/EmptyState';
 import Alert from '../components/common/Alert';
 import ConfirmModal from '../components/common/ConfirmModal';
 import {
   LayoutDashboard, Store, DollarSign, ShieldAlert, ShieldCheck, TrendingUp, Calendar,
-  ArrowUpFromLine, Clock, CheckCircle, AlertCircle, Plus, X, Upload, Image,
-  FileText, ChevronRight, ChevronLeft, Menu, Wallet, Loader, Star, Crosshair,
-  Home, Tag,
+  ArrowUpFromLine, Clock, CheckCircle, Plus, X, Upload, Image,
+  FileText, ChevronRight, Menu, Wallet, Loader, Star, Crosshair,
+  Tag,
 } from 'lucide-react';
 
 const statusColors = {
@@ -58,10 +56,6 @@ const cardStyle = {
   background: 'var(--color-surface)', borderRadius: 'var(--radius-md)',
   border: '1px solid var(--color-border)', padding: '20px 24px',
 };
-
-const tableHeadStyle = { background: 'var(--color-bg)', textAlign: 'left', fontSize: '0.82rem' };
-const thStyle = { padding: '10px 16px', borderBottom: '1px solid var(--color-border)' };
-const tdStyle = { padding: '10px 16px', borderBottom: '1px solid var(--color-border)', fontSize: '0.85rem' };
 
 function Badge({ label, color }) {
   return (
@@ -272,7 +266,6 @@ function VendorDashboard() {
   const [form, setForm] = useState({ name: '', description: '', address: '', city: '', state: '', lga: '', phone: '', latitude: '', longitude: '', email: '', website: '', images: [], certifications: [], serviceTerms: '', categoryId: '', listingType: '', propertyType: '', bedrooms: '', isDirectFromOwner: true });
   const [formError, setFormError] = useState('');
   const [categories, setCategories] = useState([]);
-  const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawBank, setWithdrawBank] = useState('');
   const [withdrawAcctNo, setWithdrawAcctNo] = useState('');
@@ -441,18 +434,6 @@ function VendorDashboard() {
     } catch (err) { console.error('fetch transactions error:', err); }
   }
 
-  async function handleDeposit(e) {
-    e.preventDefault();
-    walletMsg && setWalletMsg('');
-    const amt = parseFloat(depositAmount);
-    if (!amt || amt <= 0) return setWalletMsg('Enter a valid amount');
-    try {
-      const res = await api.post('/payments/deposit', { userId: user.id, amount: amt });
-      if (res.success) { setWallet(res.data); setDepositAmount(''); setWalletMsg(`Deposited ₦${amt.toLocaleString()}`); }
-      else setWalletMsg(res.error || 'Deposit failed');
-    } catch { setWalletMsg('Deposit failed'); }
-  }
-
   async function fetchWithdrawRequests() {
     try {
       const res = await api.get('/payments/withdrawals/my');
@@ -553,7 +534,7 @@ function VendorDashboard() {
     e.preventDefault();
     setFormError('');
     try {
-      const { lga, serviceTerms, categoryId, listingType, propertyType, bedrooms, isDirectFromOwner, ...restForm } = form;
+      const { _lga, serviceTerms, categoryId, listingType, propertyType, bedrooms, isDirectFromOwner, ...restForm } = form;
       const payload = { ...restForm, category_id: categoryId };
       if (listingType) payload.listing_type = listingType;
       if (propertyType) payload.property_type = propertyType;

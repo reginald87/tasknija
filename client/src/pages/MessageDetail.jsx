@@ -7,7 +7,7 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import AttachmentUpload from '../components/message/AttachmentUpload.jsx';
 import { useRealtimeMessages } from '../components/message/RealtimeMessages.jsx';
 import {
-  Send, Paperclip, Image as ImageIcon, X, User, MoreVertical,
+  Send, Paperclip, X, User,
   Clock, CheckCircle, Briefcase, Plus, FileText, DollarSign,
   ThumbsUp, ThumbsDown, AlertCircle, MessageCircle
 } from 'lucide-react';
@@ -139,7 +139,6 @@ function MessageDetail() {
   }
 
   async function handleAcceptQuote(quoteId) {
-    const q = quotes.find(q => q.id === quoteId);
     try {
       const res = await api.put(`/quotes/${quoteId}/accept`);
       if (res.success) {

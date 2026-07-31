@@ -11,7 +11,7 @@ import {
   MapPin, Phone, Mail, Globe, Star, ShieldCheck, Award,
   ChevronLeft, ChevronRight, X, MessageCircle, Clock, User, ChevronDown,
   DollarSign, Wallet, Loader, Home, KeyRound, Car, Briefcase, Building2,
-  BedDouble, Bath, Ruler, Sofa, Fuel, Gauge, CalendarDays, FileText,
+  BedDouble, Bath, Ruler, Sofa, FileText,
   CheckCircle2, Instagram, Facebook
 } from 'lucide-react';
 

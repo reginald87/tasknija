@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { ChevronDown, Type, List } from 'lucide-react';
+import { Type, List } from 'lucide-react';
 import api from '../services/api';
 
 const inputStyle = {

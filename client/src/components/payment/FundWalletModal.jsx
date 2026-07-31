@@ -53,7 +53,7 @@ const MODAL_STYLES = {
   },
 };
 
-export default function FundWalletModal({ onClose, onSuccess }) {
+export default function FundWalletModal({ onClose, _onSuccess }) {
   const [amount, setAmount] = useState('');
   const [channel, setChannel] = useState('card');
   const [loading, setLoading] = useState(false);

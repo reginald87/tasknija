@@ -1,6 +1,34 @@
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import { NIGERIA_COUNTRY, NIGERIA_STATES } from './locationData.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const rootEnv = path.resolve(__dirname, '..', '..', '.env');
+const serverEnv = path.resolve(__dirname, '.env');
+
+if (existsSync(rootEnv)) {
+  dotenv.config({ path: rootEnv });
+} else if (existsSync(serverEnv)) {
+  dotenv.config({ path: serverEnv });
+} else {
+  dotenv.config();
+}
 
 const prisma = new PrismaClient();
+
+function slugify(str) {
+  return String(str || '')
+    .toLowerCase()
+    .trim()
+    .replace(/'/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
 
 const PROPERTY_FILTERS = {
   filters: [
@@ -138,7 +166,63 @@ async function main() {
     }
   }
 
+  await seedLocations();
+
   console.log('Seed complete!');
+}
+
+async function seedLocations() {
+  console.log('Seeding locations (Country/State/LGA/City)...');
+
+  const country = await prisma.country.upsert({
+    where: { slug: NIGERIA_COUNTRY.slug },
+    update: { name: NIGERIA_COUNTRY.name, code: NIGERIA_COUNTRY.code },
+    create: { ...NIGERIA_COUNTRY },
+  });
+  console.log(`  Country: ${country.name}`);
+
+  for (const stateData of NIGERIA_STATES) {
+    const state = await prisma.state.upsert({
+      where: { slug_country_id: { slug: slugify(stateData.name), country_id: country.id } },
+      update: { name: stateData.name },
+      create: { name: stateData.name, slug: slugify(stateData.name), country_id: country.id },
+    });
+
+    const lgaIds = new Map();
+    for (const lgaName of stateData.lgas) {
+      const lga = await prisma.lga.upsert({
+        where: { slug_state_id: { slug: slugify(lgaName), state_id: state.id } },
+        update: { name: lgaName },
+        create: { name: lgaName, slug: slugify(lgaName), state_id: state.id },
+      });
+      lgaIds.set(lgaName, lga.id);
+    }
+
+    for (const cityData of stateData.cities || []) {
+      const lgaId = cityData.lga ? lgaIds.get(cityData.lga) : null;
+      await prisma.city.upsert({
+        where: { slug_state_id: { slug: slugify(cityData.name), state_id: state.id } },
+        update: {
+          name: cityData.name,
+          lga_id: lgaId,
+          latitude: cityData.lat ?? null,
+          longitude: cityData.lng ?? null,
+        },
+        create: {
+          name: cityData.name,
+          slug: slugify(cityData.name),
+          state_id: state.id,
+          lga_id: lgaId,
+          latitude: cityData.lat ?? null,
+          longitude: cityData.lng ?? null,
+        },
+      });
+    }
+  }
+
+  const totalLgas = await prisma.lga.count();
+  const totalCities = await prisma.city.count();
+  console.log(`  States: ${NIGERIA_STATES.length}, LGAs: ${totalLgas}, Cities: ${totalCities}`);
 }
 
 main()

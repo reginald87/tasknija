@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../common/Logo';
-import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, ArrowUp } from 'lucide-react';
+import { Facebook, Twitter, Instagram, ArrowUp } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 

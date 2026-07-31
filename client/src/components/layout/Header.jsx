@@ -7,7 +7,7 @@ import Logo from '../common/Logo';
 import {
   Search, MapPin, User, LogOut, PlusCircle,
   Bell, MessageSquare, Briefcase, ChevronDown, ChevronRight, Menu,
-  Sun, Moon, MessageCircle, FileText, Briefcase as WorkIcon,
+  Sun, Moon, FileText, Briefcase as WorkIcon,
 } from 'lucide-react';
 
 function Header({ onMenuToggle }) {

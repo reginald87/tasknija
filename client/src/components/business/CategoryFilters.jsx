@@ -19,7 +19,7 @@ function SelectFilter({ label, options, value, onChange }) {
   );
 }
 
-function RangeFilter({ label, minKey, maxKey, minValue, maxValue, onMinChange, onMaxChange }) {
+function RangeFilter({ label, _minKey, _maxKey, minValue, maxValue, onMinChange, onMaxChange }) {
   return (
     <RangeSlider
       label={label}

@@ -5,7 +5,6 @@ import Loading from '../components/common/Loading.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import ErrorState from '../components/common/ErrorState.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { useAuth } from '../context/AuthContext';
 import BusinessCard from '../components/business/BusinessCard.jsx';
 import {
   LayoutDashboard, MessageCircle, DollarSign, Briefcase, Heart, Menu, Wallet,
@@ -33,7 +32,6 @@ const btnOutline = {
 };
 
 export default function Favorites() {
-  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);

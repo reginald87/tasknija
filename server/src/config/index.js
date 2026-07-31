@@ -26,8 +26,6 @@ export const config = {
   refreshExpiresIn: process.env.REFRESH_EXPIRES_IN || '30d',
   bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '10', 10),
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  facebookClientId: process.env.FACEBOOK_CLIENT_ID || '',
-  githubClientId: process.env.GITHUB_CLIENT_ID || '',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT || '2'),
   paystack: {
     secretKey: process.env.PAYSTACK_SECRET_KEY || process.env.PAYMENT_SECRET_KEY || '',

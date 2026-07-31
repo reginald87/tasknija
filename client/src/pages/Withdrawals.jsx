@@ -2,14 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api.js';
 import Loading from '../components/common/Loading.jsx';
-import EmptyState from '../components/common/EmptyState.jsx';
 import ErrorState from '../components/common/ErrorState.jsx';
 import Pagination from '../components/common/Pagination.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
 import {
   ArrowUpFromLine, Store, TrendingUp, Calendar,
-  LayoutDashboard, Menu, X, Wallet, CheckCircle, Clock, AlertCircle,
+  Menu, X, CheckCircle, Clock, AlertCircle,
   Ban,
 } from 'lucide-react';
 
@@ -79,7 +77,6 @@ export default function Withdrawals() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const toast = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);

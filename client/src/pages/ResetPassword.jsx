@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useToast } from '../context/ToastContext';
 import Alert from '../components/common/Alert';
@@ -25,7 +25,6 @@ function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const toast = useToast();
-  const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();

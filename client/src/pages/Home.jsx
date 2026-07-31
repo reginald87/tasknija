@@ -11,7 +11,7 @@ import {
   MapPin, Map, ChevronRight, TrendingUp, Sparkles,
   Building2, Key, Briefcase, Car,
   MessageSquare, FileText, Wallet, BarChart3,
-  Clock, AlertTriangle, Scale, ArrowRight,
+  Scale,
 } from 'lucide-react';
 import '../styles/redesign.css';
 

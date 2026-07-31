@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader, Clock } from 'lucide-react';
+import { CheckCircle, Loader, Clock } from 'lucide-react';
 import api from '../services/api';
 import ErrorState from '../components/common/ErrorState';
 import { useToast } from '../context/ToastContext';
@@ -38,7 +38,7 @@ export default function WalletVerify() {
         setMessage(err.response?.data?.error || err.message || 'Verification failed');
         toast.error(err.response?.data?.error || err.message || 'Verification failed');
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   return (

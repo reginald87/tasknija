@@ -42,14 +42,6 @@ export const googleSchema = z.object({
   idToken: z.string().min(1, 'Google ID token is required.'),
 });
 
-export const facebookSchema = z.object({
-  accessToken: z.string().min(1, 'Facebook access token is required.'),
-});
-
-export const githubSchema = z.object({
-  code: z.string().min(1, 'Authorization code is required.'),
-});
-
 export const verifyEmailSchema = z.object({
   email: z.string().email('Invalid email format.'),
   code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit verification code.')

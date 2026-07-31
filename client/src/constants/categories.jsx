@@ -1,7 +1,7 @@
 import {
   Smartphone, Paintbrush, Grid, Droplet, Zap,
   Hammer, Sparkles, Car, Flame, Leaf, Camera,
-  BookOpen, Briefcase, Home, Building2, LandPlot,
+  BookOpen, Home, Building2, LandPlot,
   Key, Truck
 } from 'lucide-react';
 

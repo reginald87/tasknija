@@ -9,8 +9,6 @@ import {
   resetPassword,
   refreshToken,
   googleAuth,
-  facebookAuth,
-  githubAuth,
   verifyEmail,
   resendVerification,
 } from '../controllers/authController.js';
@@ -23,8 +21,6 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   googleSchema,
-  facebookSchema,
-  githubSchema,
   verifyEmailSchema,
   resendVerificationSchema,
 } from '../utils/validation.js';
@@ -86,7 +82,5 @@ router.post(
 router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.post('/refresh-token', validate(refreshTokenSchema), refreshToken);
 router.post('/google', validate(googleSchema), googleAuth);
-router.post('/facebook', validate(facebookSchema), facebookAuth);
-router.post('/github', validate(githubSchema), githubAuth);
 
 export default router;

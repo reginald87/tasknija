@@ -9,7 +9,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   Calendar, Clock, Store, TrendingUp, ArrowUpFromLine,
-  LayoutDashboard, Menu, X, Check, Plus,
+  Menu, X, Check, Plus,
 } from 'lucide-react';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -93,7 +93,7 @@ export default function VendorAvailability() {
     }
   };
 
-  useEffect(() => { loadAvailability(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [businessId]);
+  useEffect(() => { loadAvailability();   }, [businessId]);
 
   const saveSchedule = async () => {
     if (!businessId) return;

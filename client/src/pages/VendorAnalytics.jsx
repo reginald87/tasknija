@@ -6,7 +6,7 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import ErrorState from '../components/common/ErrorState.jsx';
 import {
   LayoutDashboard, TrendingUp, Users, DollarSign, ShoppingCart,
-  Star, Calendar, ArrowUpFromLine, Store, Menu, ChevronDown,
+  Star, Calendar, ArrowUpFromLine, Store, Menu,
 } from 'lucide-react';
 
 const SIDEBAR_ITEMS = [
@@ -14,13 +14,6 @@ const SIDEBAR_ITEMS = [
   { key: 'revenue', label: 'Revenue', icon: TrendingUp },
   { key: 'customers', label: 'Customers', icon: Users },
 ];
-
-const btnPrimary = {
-  padding: '10px 20px', background: 'var(--color-primary)', color: '#fff',
-  border: 'none', borderRadius: 'var(--radius)', cursor: 'pointer', fontWeight: 600,
-  fontSize: '0.88rem', display: 'inline-flex', alignItems: 'center', gap: 8,
-  transition: 'all 0.2s',
-};
 
 const btnOutline = {
   padding: '8px 16px', background: 'transparent', color: 'var(--color-text)',
@@ -155,7 +148,7 @@ export default function VendorAnalytics() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [period]);
+  useEffect(() => { load();   }, [period]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorState message={error.message} onRetry={load} />;

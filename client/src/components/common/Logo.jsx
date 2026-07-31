@@ -10,7 +10,6 @@ export default function Logo({ size = 32, showText = true, variant = 'default', 
 
   const isLight = variant === 'light';
   const isDark = variant === 'dark';
-  const textColor = isLight ? '#ffffff' : isDark ? '#0f172a' : 'var(--color-secondary, #0f172a)';
   const taskColor = isLight ? '#ffffff' : isDark ? '#0b3d2e' : '#0b3d2e';
   const nijaColor = isLight ? '#4ade80' : isDark ? '#1a6b4a' : '#1a6b4a';
 

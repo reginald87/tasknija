@@ -5,16 +5,6 @@ vi.stubEnv('VITE_API_URL', 'http://api.test/api');
 
 import { api } from '../api.js';
 
-function mockFetchOnce(status, body, contentType = 'application/json') {
-  return vi.fn().mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    headers: { get: (k) => (k.toLowerCase() === 'content-type' ? contentType : null) },
-    json: async () => body,
-    text: async () => (typeof body === 'string' ? body : JSON.stringify(body)),
-  });
-}
-
 describe('api client', () => {
   beforeEach(() => {
     localStorage.clear();

@@ -38,7 +38,7 @@ export function useApi(url, options = {}) {
         setLoading(false);
       }
     }
-  }, [url, paramsKey, skip]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [url, paramsKey, skip]);  
 
   useEffect(() => {
     if (skip) {

@@ -32,8 +32,7 @@ export default function ConfirmModal({
  * Promise-based helper for ad-hoc confirmation. Falls back to window.confirm
  * so it works before the modal manager pattern lands in chunk 11a.
  */
-export function confirmModal({ title, message, confirmText, variant } = {}) {
-  // eslint-disable-next-line no-console
+export function confirmModal({ title, message, _confirmText, _variant } = {}) {
   console.warn('confirmModal: using window.confirm fallback. Use <ConfirmModal /> for styled UI.');
   return Promise.resolve(window.confirm(`${title ? title + '\n\n' : ''}${message || 'Are you sure?'}`));
 }

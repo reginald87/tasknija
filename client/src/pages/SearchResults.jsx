@@ -34,7 +34,7 @@ function SearchResults() {
   useEffect(() => {
     const urlCity = searchParams.get('city');
     if (urlCity && selectedCity === 'All Nigeria') setGlobalCity(urlCity);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'recency');
   const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get('verified') === 'true');

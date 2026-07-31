@@ -45,7 +45,7 @@ function useConversationMessages(conversationId, initialMessages = []) {
 }
 
 export default function RealtimeMessages({ conversationId, onMessage, initialMessages = [] }) {
-  const [messages, setMessages] = useConversationMessages(conversationId, initialMessages);
+  const [messages] = useConversationMessages(conversationId, initialMessages);
 
   // Notify parent of newly arrived messages.
   const prevIdsRef = useRef(new Set());

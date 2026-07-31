@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 const CHANNELS = [
   { id: 'card', label: '💳 Card', description: 'Debit/credit card' },
   { id: 'bank', label: '🏦 Bank Transfer', description: 'Transfer from your bank account' },

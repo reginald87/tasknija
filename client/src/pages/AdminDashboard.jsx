@@ -9,7 +9,6 @@ import {
 } from 'recharts';
 import Loading from '../components/common/Loading';
 import EmptyState from '../components/common/EmptyState';
-import ConfirmModal from '../components/common/ConfirmModal';
 import {
   LayoutDashboard, FolderTree, Globe, Users, Store,
   TrendingUp, Star, ChevronRight, Wallet, Scale, FileText,
@@ -103,7 +102,6 @@ function ActionBtn({ label, color, onClick }) {
   );
 }
 
-const CHART_COLORS = ['#0b3d2e', '#2563eb', '#16a34a', '#f59e0b', '#6366f1', '#0ea5e9', '#dc2626', '#db2777'];
 const chartTooltipStyle = {
   background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
@@ -238,7 +236,7 @@ function AdminDashboard() {
   const [editingLoc, setEditingLoc] = useState(null);
 
   /* Confirm modal state */
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [_confirmAction, setConfirmAction] = useState(null);
   const toast = useToast();
 
   useEffect(() => {

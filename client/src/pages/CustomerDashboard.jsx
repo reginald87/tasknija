@@ -9,8 +9,8 @@ import EmptyState from '../components/common/EmptyState';
 import ConfirmModal from '../components/common/ConfirmModal';
 import {
   LayoutDashboard, MessageCircle, DollarSign, Briefcase, Clock, CheckCircle,
-  AlertCircle, Plus, Search, ChevronRight, User, ShieldAlert, X, Loader,
-  Heart, Menu, Wallet, Star, Home,
+  Plus, Search, ChevronRight, User, ShieldAlert, X, Loader,
+  Heart, Menu, Wallet, Home,
 } from 'lucide-react';
 
 const statusColors = {
@@ -172,7 +172,7 @@ function CustomerDashboard() {
       } else {
         toast.error(res.error?.message || 'Failed to confirm milestone');
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to confirm milestone');
     }
     setConfirmMilestone(null);
@@ -603,7 +603,7 @@ function CustomerDashboard() {
 
                         {total > 0 && (
                           <div style={{ fontSize: '0.8rem', marginBottom: 12 }}>
-                            {ms.map((m, mi) => (
+                            {ms.map((m, _mi) => (
                               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.status === 'released' ? '#16a34a' : m.status === 'completed' ? '#f59e0b' : '#d1d5db', flexShrink: 0 }} />
                                 <span style={{ flex: 1, color: m.status === 'released' ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{m.description}</span>

@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LocationProvider } from './context/LocationContext';
-import { MessageSquare, Bell } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import Layout from './components/layout/Layout';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -31,7 +31,6 @@ const TransactionDetail = lazy(() => import('./pages/TransactionDetail.jsx'));
 const HelpFAQ = lazy(() => import('./pages/HelpFAQ.jsx'));
 const Quotes = lazy(() => import('./pages/Quotes.jsx'));
 const WorkProjects = lazy(() => import('./pages/WorkProjects.jsx'));
-const GitHubCallback = lazy(() => import('./pages/GitHubCallback'));
 
 function RequireRole({ role, children }) {
   const { profile } = useAuth();
@@ -94,7 +93,6 @@ function App() {
             <Route path="/help" element={<HelpFAQ />} />
             <Route path="/quotes" element={<Quotes />} />
             <Route path="/work-projects" element={<WorkProjects />} />
-            <Route path="/auth/github/callback" element={<GitHubCallback />} />
           </Routes>
           </Suspense>
         </Layout>

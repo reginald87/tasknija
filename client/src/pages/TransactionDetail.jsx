@@ -41,7 +41,7 @@ export default function TransactionDetail() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+  useEffect(() => { load();   }, [id]);
 
   const cancel = async () => {
     try {

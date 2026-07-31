@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useToast } from '../context/ToastContext';
 import Alert from '../components/common/Alert';
 import Logo from '../components/common/Logo';
 import { api } from '../services/api';
-import { Mail, Eye, EyeOff, KeyRound, LogIn } from 'lucide-react';
+import { Mail, KeyRound, LogIn } from 'lucide-react';
 
 const forgotSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -18,7 +18,6 @@ function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const toast = useToast();
-  const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -42,7 +41,7 @@ function ForgotPassword() {
       }
       setSent(true);
       toast.success('If that email exists, a reset link is on its way.');
-    } catch (err) {
+    } catch {
       // Always show the generic confirmation (no enumeration).
       setSent(true);
     } finally {
