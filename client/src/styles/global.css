@@ -36,7 +36,7 @@
   --color-primary-light: #064e3b;
   --color-primary-dark: #065f46;
   --color-primary-hover: #059669;
-  --color-secondary: #1e293b;
+  --color-secondary: #e2e8f0;
   --color-text: #e2e8f0;
   --color-text-muted: #94a3b8;
   --color-border: #334155;
@@ -2870,16 +2870,6 @@ ul, ol {
   color: var(--color-primary);
 }
 
-.newsletter-col p {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  line-height: 1.6;
-  margin-bottom: 4px;
-}
-  color: #94a3b8;
-  transition: var(--transition);
-}
-
 .footer-links a:hover {
   color: #fff;
 }
@@ -4425,7 +4415,9 @@ button, .btn, [role="button"], input[type="checkbox"], input[type="radio"] {
 }
 
 /* Burger menu hidden on desktop */
-.burger-menu { display: none; }
+@media (min-width: 1025px) {
+  .burger-menu { display: none; }
+}
 
 /* Desktop: persistent sidebar */
 @media (min-width: 769px) {

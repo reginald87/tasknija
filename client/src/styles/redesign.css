@@ -931,6 +931,9 @@
    =========================== */
 
 @media (max-width: 820px) {
+  .section-header { flex-wrap: wrap; gap: 10px; }
+  .section-header-actions { flex-wrap: wrap; }
+
   .cat-banner { padding: 28px 20px; min-height: 180px; }
   .cat-banner-content { flex-direction: column; text-align: center; }
   .cat-banner-text p { max-width: 100%; }
