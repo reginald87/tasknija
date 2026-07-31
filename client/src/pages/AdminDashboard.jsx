@@ -617,9 +617,9 @@ function AdminDashboard() {
                 <option value="rejected">Rejected</option>
               </select>
             </div>
-            <FormTable head={['Name', 'Owner', 'Category', 'Location', 'KYC', 'Actions']}>
+            <FormTable head={['Name', 'Owner', 'Category', 'Location', 'KYC', 'Availability', 'Actions']}>
               {businesses.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>No businesses</td></tr>
+                <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>No businesses</td></tr>
               ) : businesses.map((b) => (
                 <tr key={b.id}>
                   <td style={tdStyle} data-label="Name"><strong>{b.name}</strong></td>
@@ -627,6 +627,17 @@ function AdminDashboard() {
                   <td style={tdStyle} data-label="Category">{b.category?.name || '—'}</td>
                   <td style={tdStyle} data-label="Location">{[b.city, b.state].filter(Boolean).join(', ') || '—'}</td>
                   <td style={tdStyle} data-label="KYC"><Badge label={b.verification_status || 'pending'} color={b.verification_status === 'verified' ? '#16a34a' : b.verification_status === 'rejected' ? '#dc2626' : '#f59e0b'} /></td>
+                  <td style={tdStyle} data-label="Availability">
+                    <Badge
+                      label={b.availability_status === 'sold' ? 'Sold' : b.availability_status === 'rented' ? 'Rented' : 'Available'}
+                      color={b.availability_status === 'sold' ? '#dc2626' : b.availability_status === 'rented' ? '#d97706' : '#16a34a'}
+                    />
+                    {b.sold_at && (
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                        {new Date(b.sold_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
+                  </td>
                   <td style={tdStyle} data-label="Actions">
                     <ActionBtn label="Review" onClick={() => setReviewBiz(b)} />
                     {(b.verification_status === 'verified' || b.verification_status === 'rejected') && <ActionBtn label="Delete" color="#dc2626" onClick={() => handleBizDelete(b.id)} />}

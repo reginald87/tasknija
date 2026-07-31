@@ -1,7 +1,7 @@
 import { prisma } from './prisma.js';
 import { logger } from '../middleware/logger.js';
 
-// Replaces the old Supabase connection check. With SQLite/Prisma we simply
+// Replaces the old Supabase client check. With SQLite/Prisma we simply
 // verify the client can run a trivial query.
 export async function connectDB() {
   try {

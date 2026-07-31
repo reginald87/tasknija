@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { getServiceTerms, setServiceTerms, deleteBusinessMeta } from '../utils/businessMeta.js';
 import { readVendorSubs, writeVendorSubs } from '../utils/subscriptionData.js';
 import { sanitizeObject } from '../utils/sanitize.js';
-import { serializeBusiness, serializeBusinesses } from '../utils/serializers.js';
+import { serializeBusiness, serializeBusinesses, stringifyJson } from '../utils/serializers.js';
 import crypto from 'crypto';
 
 const BUSINESS_UPDATE_FIELDS = [
@@ -13,6 +13,7 @@ const BUSINESS_UPDATE_FIELDS = [
   'images', 'category_id', 'service_terms', 'operating_hours',
   'whatsapp', 'instagram', 'facebook',
   'is_direct_from_owner',
+  'availability_status',
   // Property/listing fields
   'listing_type', 'price', 'price_type', 'currency', 'condition',
   'property_type', 'bedrooms', 'bathrooms', 'area_sqm', 'year_built', 'furnished',
@@ -55,6 +56,7 @@ export const businessUpdateSchema = z.object({
   whatsapp: z.string().regex(/^[\d\s+()-]{7,20}$/).optional(),
   instagram: z.string().max(100).optional(),
   facebook: z.string().url().optional(),
+  availability_status: z.enum(['available', 'sold', 'rented']).optional(),
   // Property/listing fields
   listing_type: z.enum(['sale', 'rent', 'lease']).optional(),
   price: z.coerce.number().min(0).optional(),
@@ -90,6 +92,7 @@ export const businessCreateSchema = z.object({
   website: z.string().url().optional(),
   images: z.array(z.string().max(500)).max(10).optional(),
   certifications: z.array(z.string()).max(20).optional(),
+  is_direct_from_owner: z.boolean().optional(),
   // Property/listing fields
   listing_type: z.enum(['sale', 'rent', 'lease']).optional(),
   price: z.coerce.number().min(0).optional(),
@@ -154,7 +157,7 @@ export async function getAll(req, res, next) {
     const { featured, recommended, category, search, city, lat, lng, radius, verified,
             listing_type, min_price, max_price, condition, property_type, bedrooms, bathrooms,
             furnished, vehicle_type, fuel_type, transmission, min_mileage, max_mileage,
-            min_year, max_year } = req.query;
+            min_year, max_year, sort, listed_within } = req.query;
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
     const offset = (page - 1) * limit;
@@ -201,18 +204,38 @@ export async function getAll(req, res, next) {
       if (min_year) where.year_of_manufacture.gte = parseInt(min_year);
       if (max_year) where.year_of_manufacture.lte = parseInt(max_year);
     }
+    // "Recently listed" quick filter: only listings created within the given
+    // number of days (e.g. 7, 30, 90).
+    const days = parseInt(listed_within);
+    if (Number.isFinite(days) && days > 0) {
+      where.created_at = { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) };
+    }
+
+    const orderBy = (() => {
+      switch (sort) {
+        case 'rating':
+          return [{ rating_avg: 'desc' }, { created_at: 'desc' }];
+        case 'price':
+          return [{ price: 'asc' }, { created_at: 'desc' }];
+        case 'price_desc':
+          return [{ price: 'desc' }, { created_at: 'desc' }];
+        case 'name':
+          return [{ name: 'asc' }];
+        case 'distance':
+        case 'recency':
+        default:
+          return [{ is_featured: 'desc' }, { created_at: 'desc' }];
+      }
+    })();
 
     const [data, count] = await Promise.all([
       prisma.business.findMany({
         where,
         include: {
-          category: { select: { name: true, slug: true } },
+          category: { select: { name: true, slug: true, type: true } },
           owner: { select: { priority_support: true } },
         },
-        orderBy: [
-          { is_featured: 'desc' },
-          { created_at: 'desc' },
-        ],
+        orderBy,
         skip: offset,
         take: limit,
       }),
@@ -257,7 +280,7 @@ export async function getById(req, res, next) {
     const business = await prisma.business.findUnique({
       where: { id },
       include: {
-        category: { select: { name: true, slug: true } },
+        category: { select: { name: true, slug: true, type: true } },
         owner: { select: { full_name: true, email: true, phone: true, avatar_url: true, priority_support: true } },
       },
     });
@@ -282,6 +305,78 @@ export async function getById(req, res, next) {
       success: true,
       data: { ...safeData, priority_support: Boolean(business.owner?.priority_support), reviews },
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getRelated(req, res, next) {
+  try {
+    const { id } = req.params;
+    const limit = Math.min(Math.max(Number(req.query.limit) || 6, 1), 12);
+
+    const business = await prisma.business.findUnique({
+      where: { id },
+      include: { category: { select: { type: true } } },
+    });
+    if (!business) throw new AppError(404, 'NOT_FOUND', 'Business not found.');
+
+    // Candidates: same category, or any category of the same type, that are
+    // still available. Rejected listings are never surfaced.
+    const candidates = await prisma.business.findMany({
+      where: {
+        NOT: [
+          { id: business.id },
+          { verification_status: 'rejected' },
+        ],
+        availability_status: 'available',
+        OR: [
+          { category_id: business.category_id },
+          { category: { type: business.category?.type } },
+        ],
+      },
+      include: {
+        category: { select: { name: true, slug: true, type: true } },
+        owner: { select: { priority_support: true } },
+      },
+    });
+
+    const norm = (v) => (v || '').trim().toLowerCase();
+    const price = Number(business.price) || 0;
+
+    const scored = candidates
+      .map((c) => {
+        let score = 0;
+        if (c.category_id === business.category_id) score += 4;
+        else if (c.category?.type === business.category?.type) score += 1;
+        if (norm(c.city) === norm(business.city) && business.city) score += 2;
+        if (norm(c.state) === norm(business.state) && business.state) score += 1;
+        if (norm(c.property_type) === norm(business.property_type) && business.property_type) score += 2;
+        if (c.listing_type === business.listing_type && business.listing_type) score += 1;
+        if (c.condition === business.condition && business.condition) score += 1;
+        if (norm(c.vehicle_type) === norm(business.vehicle_type) && business.vehicle_type) score += 1;
+        if (c.fuel_type === business.fuel_type && business.fuel_type) score += 1;
+        if (price > 0 && Number(c.price) > 0) {
+          const diff = Math.abs(Number(c.price) - price) / price;
+          if (diff <= 0.3) score += 1;
+        }
+        return { business: c, score };
+      })
+      .filter((x) => x.score >= 1)
+      .sort((a, b) => b.score - a.score || new Date(b.business.created_at) - new Date(a.business.created_at))
+      .slice(0, limit)
+      .map((x) => x.business);
+
+    let serialized = serializeBusinesses(scored).map((b) => ({
+      ...b,
+      priority_support: Boolean(b.owner?.priority_support),
+    }));
+
+    const viewerId = req.user?.id || null;
+    const isAdmin = req.user?.role === 'admin';
+    serialized = serialized.map(b => stripAdminFields(b, viewerId, isAdmin));
+
+    return res.json({ success: true, data: serialized });
   } catch (err) {
     next(err);
   }
@@ -378,8 +473,9 @@ export async function create(req, res, next) {
         phone: data.phone,
         email: data.email,
         website: data.website,
-        images: data.images || [],
-        certifications: data.certifications || [],
+        images: stringifyJson(data.images || []),
+        certifications: stringifyJson(data.certifications || []),
+        is_direct_from_owner: data.is_direct_from_owner ?? (req.user.role === 'property_owner'),
         // Property/listing fields
         listing_type: data.listing_type,
         price: data.price,
@@ -427,8 +523,31 @@ export async function update(req, res, next) {
     const { serviceTerms, ...bodyForUpdate } = req.body || {};
     const safeUpdates = sanitizeObject(pick(bodyForUpdate, BUSINESS_UPDATE_FIELDS), ['name', 'description']);
 
+    // JSON-string columns are stored as strings in SQLite.
+    if ('images' in safeUpdates) safeUpdates.images = stringifyJson(safeUpdates.images);
+    if ('certifications' in safeUpdates) safeUpdates.certifications = stringifyJson(safeUpdates.certifications);
+    if ('attributes' in safeUpdates) safeUpdates.attributes = stringifyJson(safeUpdates.attributes);
+
     if (Object.keys(safeUpdates).length === 0 && serviceTerms === undefined) {
       throw new AppError(400, 'NO_UPDATES', 'No updatable fields provided.');
+    }
+
+    // Availability management: mark sold/rented records the timestamp,
+    // re-listing clears it. Only property/rental/vehicle listings may be
+    // marked unavailable.
+    if ('availability_status' in safeUpdates) {
+      const current = await prisma.business.findUnique({ where: { id }, select: { category_id: true, availability_status: true } });
+      const catType = current?.category_id
+        ? (await prisma.category.findUnique({ where: { id: current.category_id }, select: { type: true } }))?.type
+        : null;
+      if (catType === 'service') {
+        throw new AppError(400, 'INVALID_AVAILABILITY', 'Availability status only applies to property, rental, or vehicle listings.');
+      }
+      if (safeUpdates.availability_status === 'available') {
+        safeUpdates.sold_at = null;
+      } else if (current?.availability_status === 'available') {
+        safeUpdates.sold_at = new Date();
+      }
     }
 
     let updatedRow = null;

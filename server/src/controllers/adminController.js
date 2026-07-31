@@ -77,7 +77,7 @@ export async function getBusinesses(req, res, next) {
         where,
         include: {
           owner: { select: { full_name: true, email: true, phone: true } },
-          category: { select: { name: true, slug: true } },
+          category: { select: { name: true, slug: true, type: true } },
         },
         orderBy: { created_at: 'desc' },
         skip: from,

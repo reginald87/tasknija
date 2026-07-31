@@ -42,6 +42,8 @@ function CategoryPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [allCategories, setAllCategories] = useState([]);
   const [filters, setFilters] = useState({});
+  const [sortBy, setSortBy] = useState('recency');
+  const [listedWithin, setListedWithin] = useState('');
   const [animateIn, setAnimateIn] = useState(false);
 
   const cities = useMemo(() => {
@@ -49,11 +51,28 @@ function CategoryPage() {
     return [...unique].sort();
   }, [businesses]);
 
+  const SORT_OPTIONS = [
+    { value: 'recency', label: 'Most Recent' },
+    { value: 'rating', label: 'Highest Rated' },
+    { value: 'price', label: 'Price (low to high)' },
+    { value: 'price_desc', label: 'Price (high to low)' },
+    { value: 'name', label: 'Name (A-Z)' },
+  ];
+
+  const RECENT_OPTIONS = [
+    { value: '', label: 'Any time' },
+    { value: '7', label: 'Last 7 days' },
+    { value: '30', label: 'Last 30 days' },
+    { value: '90', label: 'Last 90 days' },
+  ];
+
   const applyFilters = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (selectedCity && selectedCity !== 'All Nigeria') params.set('city', selectedCity);
     if (slug) params.set('category', slug);
+    if (sortBy && sortBy !== 'recency') params.set('sort', sortBy);
+    if (listedWithin) params.set('listed_within', listedWithin);
 
     Object.entries(filters).forEach(([key, val]) => {
       if (val !== undefined && val !== null && val !== '') {
@@ -70,11 +89,13 @@ function CategoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [slug, selectedCity, filters]);
+  }, [slug, selectedCity, filters, sortBy, listedWithin]);
 
   useEffect(() => {
     setLoading(true);
     setFilters({});
+    setSortBy('recency');
+    setListedWithin('');
     setAnimateIn(false);
     Promise.all([
       api.get(`/categories/${slug}`).catch(() => ({ data: { success: false } })),
@@ -173,22 +194,49 @@ function CategoryPage() {
             <TrendingUp size={20} className="text-primary" />
             <h2>All {category.name}</h2>
           </div>
-          <button
-            className="btn-header-cta"
-            style={{ padding: '8px 18px', fontSize: '0.85rem' }}
-            onClick={() => setShowFilter(!showFilter)}
-          >
-            {showFilter ? <X size={14} /> : <Filter size={14} />}
-            <span>{showFilter ? 'Close' : 'Filters'}</span>
-            {hasActiveFilters && (
-              <span style={{
-                marginLeft: 4, background: 'rgba(255,255,255,0.3)', borderRadius: '999px',
-                padding: '0 6px', fontSize: '0.7rem', fontWeight: 700,
-              }}>
-                {Object.keys(filters).length + (selectedCity && selectedCity !== 'All Nigeria' ? 1 : 0)}
-              </span>
-            )}
-          </button>
+          <div className="section-header-actions">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="filter-select"
+              aria-label="Sort listings"
+              style={{ width: 190 }}
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <button
+              className="btn-header-cta"
+              style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+              onClick={() => setShowFilter(!showFilter)}
+            >
+              {showFilter ? <X size={14} /> : <Filter size={14} />}
+              <span>{showFilter ? 'Close' : 'Filters'}</span>
+              {hasActiveFilters && (
+                <span style={{
+                  marginLeft: 4, background: 'rgba(255,255,255,0.3)', borderRadius: '999px',
+                  padding: '0 6px', fontSize: '0.7rem', fontWeight: 700,
+                }}>
+                  {Object.keys(filters).length + (selectedCity && selectedCity !== 'All Nigeria' ? 1 : 0)}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Recently listed quick filter */}
+        <div className="recent-listed-chips">
+          <span className="recent-listed-label">Listed:</span>
+          {RECENT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value || 'any'}
+              className={`recent-chip ${listedWithin === opt.value ? 'active' : ''}`}
+              onClick={() => setListedWithin(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
 
         {showFilter && (

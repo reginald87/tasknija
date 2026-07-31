@@ -13,6 +13,7 @@ import {
   LayoutDashboard, Store, DollarSign, ShieldAlert, TrendingUp, Calendar,
   ArrowUpFromLine, Clock, CheckCircle, AlertCircle, Plus, X, Upload, Image,
   FileText, ChevronRight, ChevronLeft, Menu, Wallet, Loader, Star, Crosshair,
+  Home, Tag,
 } from 'lucide-react';
 
 const statusColors = {
@@ -93,6 +94,159 @@ function StatCard({ icon: Icon, label, value, color }) {
   );
 }
 
+function titleCase(s) {
+  return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Group a vendor's listings into a portfolio: by category type, then by a
+// sensible sub-group (property_type for properties/rentals, vehicle_type for
+// vehicles, city for services).
+function portfolioGroups(businesses) {
+  const order = ['property', 'rental', 'vehicle', 'service'];
+  const labelMap = { property: 'Properties', rental: 'Rentals', vehicle: 'Vehicles', service: 'Services' };
+  const subKeyFor = (b) => {
+    const t = b.category?.type;
+    if (t === 'vehicle') return b.vehicle_type ? titleCase(b.vehicle_type) : 'Vehicles';
+    if (t === 'service') return b.city ? titleCase(b.city) : 'Other Areas';
+    return b.property_type ? titleCase(b.property_type) : 'Properties';
+  };
+  const groups = [];
+  for (const t of order) {
+    const items = (businesses || []).filter((b) => (b.category?.type || 'service') === t);
+    if (items.length === 0) continue;
+    const sub = {};
+    for (const b of items) {
+      const k = subKeyFor(b);
+      (sub[k] = sub[k] || []).push(b);
+    }
+    const subgroups = Object.entries(sub)
+      .map(([label, list]) => ({ label, list }))
+      .sort((a, b) => b.list.length - a.list.length);
+    groups.push({ type: t, label: labelMap[t] || titleCase(t), count: items.length, subgroups });
+  }
+  return groups;
+}
+
+function AvailabilityControls({ b, onUpdate, busy }) {
+  const t = b.category?.type;
+  if (t === 'service') return null;
+  const status = b.availability_status || 'available';
+
+  const btn = {
+    padding: '5px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.72rem',
+    fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', border: 'none', opacity: busy ? 0.6 : 1,
+  };
+
+  if (status === 'available') {
+    return (
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        <button onClick={() => onUpdate(b, 'sold')} disabled={busy} title="This item has been sold" style={{ ...btn, background: '#dc2626', color: '#fff' }}>
+          Mark Sold
+        </button>
+        <button onClick={() => onUpdate(b, 'rented')} disabled={busy} title="This item has been rented/leased" style={{ ...btn, background: '#d97706', color: '#fff' }}>
+          Mark Rented
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Badge label={status} color={status === 'sold' ? '#dc2626' : '#d97706'} />
+      <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+        {b.sold_at ? new Date(b.sold_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+      </span>
+      <button onClick={() => onUpdate(b, 'available')} disabled={busy} style={{ ...btn, background: '#059669', color: '#fff' }}>
+        Re-list
+      </button>
+    </div>
+  );
+}
+
+function PortfolioListingCard({ b, onEdit, onDelete, onAvailability, availabilityBusy, compact }) {
+  return (
+    <div style={cardStyle}>
+      {(b.images || []).length > 0 && (
+        <div style={{ position: 'relative', width: '100%', height: compact ? 140 : 150, borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: 10, background: 'var(--color-bg)' }}>
+          <img
+            src={b.images[0]}
+            alt=""
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover',
+              filter: (b.availability_status === 'sold' || b.availability_status === 'rented') ? 'grayscale(0.9) brightness(0.75)' : undefined,
+            }}
+          />
+          {(b.availability_status === 'sold' || b.availability_status === 'rented') && (
+            <span style={{ position: 'absolute', top: 8, left: 8, background: '#dc2626', color: '#fff', fontSize: '0.65rem', fontWeight: 800, padding: '3px 10px', borderRadius: '999px', letterSpacing: 1 }}>
+              {b.availability_status === 'sold' ? 'SOLD' : 'RENTED'}
+            </span>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h4 style={{ margin: 0, fontSize: compact ? '0.95rem' : '1rem', fontWeight: 700 }}>{b.name}</h4>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.82rem', margin: '4px 0' }}>{b.address}{b.city ? `, ${b.city}` : ''}</p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          {b.is_direct_from_owner && ['property', 'rental'].includes(b.category?.type) && (
+            <Badge label="Direct from Owner" color="#059669" />
+          )}
+          <Badge
+            label={b.verification_status || 'pending'}
+            color={b.verification_status === 'verified' ? '#16a34a' : b.verification_status === 'rejected' ? '#dc2626' : '#f59e0b'}
+          />
+        </div>
+      </div>
+      <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+        <Star size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2, color: '#f59e0b' }} />
+        {b.rating_avg || 0} ({b.rating_count || 0} reviews)
+      </p>
+      <AvailabilityControls b={b} onUpdate={onAvailability} busy={availabilityBusy === b.id} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button onClick={() => onEdit(b)} style={btnOutline}>Edit</button>
+        <button onClick={() => onDelete(b)} style={{ ...btnOutline, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>Delete</button>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioView({ businesses, onEdit, onDelete, onAvailability, availabilityBusy, collapsed, onToggleGroup, compact }) {
+  const groups = portfolioGroups(businesses);
+  if (groups.length === 0) return null;
+
+  return groups.map((group) => (
+    <div key={group.type} style={{ marginBottom: 24 }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 12, userSelect: 'none' }}
+        onClick={() => onToggleGroup(group.type)}
+      >
+        <ChevronRight size={16} style={{ color: 'var(--color-primary)', transform: collapsed[group.type] ? '' : 'rotate(90deg)', transition: 'transform 0.15s' }} />
+        <Tag size={16} style={{ color: 'var(--color-primary)' }} />
+        <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--color-secondary)' }}>{group.label}</h3>
+        <span style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '0.72rem', fontWeight: 700, borderRadius: '999px', padding: '2px 10px' }}>
+          {group.count}
+        </span>
+      </div>
+      {!collapsed[group.type] && group.subgroups.map((sub) => (
+        <div key={sub.label} style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {sub.label}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{sub.list.length}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {sub.list.map((b) => (
+              <PortfolioListingCard key={b.id} b={b} onEdit={onEdit} onDelete={onDelete} onAvailability={onAvailability} availabilityBusy={availabilityBusy} compact={compact} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  ));
+}
+
 function VendorDashboard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -109,10 +263,12 @@ function VendorDashboard() {
   useEffect(() => { if (isMobile) setSidebarOpen(false); }, [activeSection, isMobile]);
 
   const [myBusinesses, setMyBusinesses] = useState([]);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [availabilityBusy, setAvailabilityBusy] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [showFundModal, setShowFundModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', address: '', city: '', state: '', lga: '', phone: '', latitude: '', longitude: '', email: '', website: '', images: [], certifications: [], serviceTerms: '', categoryId: '' });
+  const [form, setForm] = useState({ name: '', description: '', address: '', city: '', state: '', lga: '', phone: '', latitude: '', longitude: '', email: '', website: '', images: [], certifications: [], serviceTerms: '', categoryId: '', listingType: '', propertyType: '', bedrooms: '', isDirectFromOwner: true });
   const [formError, setFormError] = useState('');
   const [categories, setCategories] = useState([]);
   const [depositAmount, setDepositAmount] = useState('');
@@ -156,6 +312,27 @@ function VendorDashboard() {
       const res = await api.get('/businesses');
       if (res.success) setMyBusinesses(res.data.filter((b) => b.owner_id === user.id));
     } catch (err) { console.error('fetch businesses error:', err); }
+  }
+
+  function toggleGroup(type) {
+    setCollapsedGroups((prev) => ({ ...prev, [type]: !prev[type] }));
+  }
+
+  async function updateAvailability(b, status) {
+    setAvailabilityBusy(b.id);
+    try {
+      const res = await api.put(`/businesses/${b.id}`, { availability_status: status });
+      if (res.success) {
+        toast?.success?.(status === 'available' ? `${b.name} re-listed as available.` : `${b.name} marked as ${status}.`);
+        fetchBusinesses();
+      } else {
+        toast?.error?.(res.error?.message || res.error || 'Could not update availability');
+      }
+    } catch (err) {
+      toast?.error?.(err.response?.data?.error || 'Could not update availability');
+    } finally {
+      setAvailabilityBusy(null);
+    }
   }
 
   async function fetchWallet() {
@@ -257,7 +434,7 @@ function VendorDashboard() {
   }
 
   function resetForm() {
-    setForm({ name: '', description: '', address: '', city: '', state: '', lga: '', phone: '', latitude: '', longitude: '', email: '', website: '', images: [], certifications: [], serviceTerms: '', categoryId: '' });
+    setForm({ name: '', description: '', address: '', city: '', state: '', lga: '', phone: '', latitude: '', longitude: '', email: '', website: '', images: [], certifications: [], serviceTerms: '', categoryId: '', listingType: '', propertyType: '', bedrooms: '', isDirectFromOwner: true });
     setEditBiz(null);
     setFormError('');
   }
@@ -272,6 +449,10 @@ function VendorDashboard() {
       images: biz.images || [], certifications: biz.certifications || [],
       serviceTerms: biz.service_terms || biz.serviceTerms || '',
       categoryId: biz.category_id || '',
+      listingType: biz.listing_type || '',
+      propertyType: biz.property_type || '',
+      bedrooms: biz.bedrooms ?? '',
+      isDirectFromOwner: biz.is_direct_from_owner ?? true,
     });
     setShowForm(true);
   }
@@ -280,8 +461,12 @@ function VendorDashboard() {
     e.preventDefault();
     setFormError('');
     try {
-      const { lga, serviceTerms, categoryId, ...restForm } = form;
+      const { lga, serviceTerms, categoryId, listingType, propertyType, bedrooms, isDirectFromOwner, ...restForm } = form;
       const payload = { ...restForm, category_id: categoryId };
+      if (listingType) payload.listing_type = listingType;
+      if (propertyType) payload.property_type = propertyType;
+      if (bedrooms !== '') payload.bedrooms = parseInt(bedrooms, 10);
+      if (isDirectFromOwner !== undefined) payload.is_direct_from_owner = isDirectFromOwner;
       if (payload.latitude) payload.latitude = parseFloat(payload.latitude);
       else delete payload.latitude;
       if (payload.longitude) payload.longitude = parseFloat(payload.longitude);
@@ -348,7 +533,7 @@ function VendorDashboard() {
     }}>
       <div style={{ padding: '0 16px 12px', borderBottom: '1px solid var(--color-border)', marginBottom: 8 }}>
         <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)' }}>
-          Vendor Menu
+          {profile?.role === 'property_owner' ? 'Property Owner Menu' : 'Vendor Menu'}
         </div>
       </div>
       {SIDEBAR_ITEMS.map(item => {
@@ -415,7 +600,7 @@ function VendorDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
               {isMobile && <div style={{ width: 36 }} />}
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-secondary)', margin: 0 }}>
-                Vendor Dashboard
+                {profile?.role === 'property_owner' ? 'Property Owner Dashboard' : 'Vendor Dashboard'}
               </h1>
             </div>
             <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
@@ -495,39 +680,24 @@ function VendorDashboard() {
                 </div>
               </div>
 
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 12, color: 'var(--color-text)' }}>My Businesses</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-                {myBusinesses.length === 0 && (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: 'var(--color-text-muted)' }}>
-                    <Store size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                    <p>No businesses yet. Register your business to start offering services.</p>
-                  </div>
-                )}
-                {myBusinesses.map((b) => (
-                  <div key={b.id} style={cardStyle}>
-                    {(b.images || []).length > 0 && (
-                      <div style={{ width: '100%', height: 140, borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: 10 }}>
-                        <img src={b.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{b.name}</h4>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.82rem', margin: '4px 0' }}>{b.address}{b.city ? `, ${b.city}` : ''}</p>
-                      </div>
-                      <Badge
-                        label={b.verification_status || 'pending'}
-                        color={b.verification_status === 'verified' ? '#16a34a' : b.verification_status === 'rejected' ? '#dc2626' : '#f59e0b'}
-                      />
-                    </div>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Rating: {b.rating_avg || 0} ({b.rating_count || 0})</p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button onClick={() => startEdit(b)} style={btnOutline}>Edit</button>
-                      <button onClick={() => setConfirmDeleteBiz(b)} style={{ ...btnOutline, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 12, color: 'var(--color-text)' }}>My Portfolio</h3>
+              {myBusinesses.length === 0 ? (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: 'var(--color-text-muted)' }}>
+                  <Store size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
+                  <p>No listings yet. Add your first property, rental, vehicle, or service.</p>
+                </div>
+              ) : (
+                <PortfolioView
+                  businesses={myBusinesses}
+                  onEdit={startEdit}
+                  onDelete={setConfirmDeleteBiz}
+                  onAvailability={updateAvailability}
+                  availabilityBusy={availabilityBusy}
+                  collapsed={collapsedGroups}
+                  onToggleGroup={toggleGroup}
+                  compact
+                />
+              )}
             </>
           )}
 
@@ -559,6 +729,47 @@ function VendorDashboard() {
                         {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
+                    {['property', 'rental'].includes(categories.find(c => c.id === form.categoryId)?.type) && (
+                      <>
+                        <div>
+                          <label style={labelStyle}>Listing Type</label>
+                          <select value={form.listingType} onChange={(e) => setForm({ ...form, listingType: e.target.value })} style={inputStyle}>
+                            <option value="">Select listing type</option>
+                            <option value="sale">For Sale</option>
+                            <option value="rent">For Rent</option>
+                            <option value="lease">For Lease</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Property Type</label>
+                          <select value={form.propertyType} onChange={(e) => setForm({ ...form, propertyType: e.target.value })} style={inputStyle}>
+                            <option value="">Select property type</option>
+                            {['apartment', 'duplex', 'bungalow', 'terraced', 'detached', 'penthouse', 'land', 'commercial'].map(p => (
+                              <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Bedrooms</label>
+                          <select value={form.bedrooms} onChange={(e) => setForm({ ...form, bedrooms: e.target.value })} style={inputStyle}>
+                            <option value="">Any</option>
+                            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                              <option key={n} value={n}>{n === 0 ? 'Studio' : n}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ gridColumn: isMobile ? '1 / -1' : '1 / -1' }}>
+                          <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={form.isDirectFromOwner}
+                              onChange={(e) => setForm({ ...form, isDirectFromOwner: e.target.checked })}
+                            />
+                            I am the direct owner (no middlemen/agents)
+                          </label>
+                        </div>
+                      </>
+                    )}
                     <div style={{ gridColumn: isMobile ? '1 / -1' : '1 / -1' }}>
                       <label style={labelStyle}>Description *</label>
                       <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} required style={{ ...inputStyle, resize: 'vertical' }} placeholder="Describe your services..." />
@@ -667,42 +878,23 @@ function VendorDashboard() {
                 </form>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-                {myBusinesses.length === 0 && !showForm && (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60, color: 'var(--color-text-muted)' }}>
-                    <Store size={56} style={{ opacity: 0.2, marginBottom: 12 }} />
-                    <h3 style={{ color: 'var(--color-text)', marginBottom: 4 }}>No businesses yet</h3>
-                    <p style={{ fontSize: '0.88rem' }}>Click "Add Business" above to create your first listing.</p>
-                  </div>
-                )}
-                {myBusinesses.map((b) => (
-                  <div key={b.id} style={cardStyle}>
-                    {(b.images || []).length > 0 && (
-                      <div style={{ width: '100%', height: 150, borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: 12 }}>
-                        <img src={b.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{b.name}</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.82rem', margin: '4px 0' }}>{b.address}{b.city ? `, ${b.city}` : ''}</p>
-                      </div>
-                      <Badge
-                        label={b.verification_status || 'pending'}
-                        color={b.verification_status === 'verified' ? '#16a34a' : b.verification_status === 'rejected' ? '#dc2626' : '#f59e0b'}
-                      />
-                    </div>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
-                      <Star size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2, color: '#f59e0b' }} />
-                      {b.rating_avg || 0} ({b.rating_count || 0} reviews)
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button onClick={() => startEdit(b)} style={btnOutline}>Edit</button>
-                      <button onClick={() => setConfirmDeleteBiz(b)} style={{ ...btnOutline, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {myBusinesses.length === 0 && !showForm ? (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60, color: 'var(--color-text-muted)' }}>
+                  <Store size={56} style={{ opacity: 0.2, marginBottom: 12 }} />
+                  <h3 style={{ color: 'var(--color-text)', marginBottom: 4 }}>No businesses yet</h3>
+                  <p style={{ fontSize: '0.88rem' }}>Click "Add Business" above to create your first listing.</p>
+                </div>
+              ) : (
+                <PortfolioView
+                  businesses={myBusinesses}
+                  onEdit={startEdit}
+                  onDelete={setConfirmDeleteBiz}
+                  onAvailability={updateAvailability}
+                  availabilityBusy={availabilityBusy}
+                  collapsed={collapsedGroups}
+                  onToggleGroup={toggleGroup}
+                />
+              )}
             </div>
           )}
 

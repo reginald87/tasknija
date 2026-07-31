@@ -59,7 +59,7 @@ export async function getUserById(id) {
  * Create a user + profile (registration). Password stored hashed in an
  * auth_users table; profile mirrors id/email/role.
  */
-export async function createUser({ email, password, fullName, role }) {
+export async function createUser({ email, password, fullName, role, listingType, propertyType, bedrooms, isDirectFromOwner }) {
   const passwordHash = await hashPassword(password);
   const id = crypto.randomUUID();
   return prisma.$transaction(async (tx) => {
@@ -70,6 +70,10 @@ export async function createUser({ email, password, fullName, role }) {
         email,
         full_name: fullName || null,
         role: role || 'user',
+        ...(listingType ? { listing_type: listingType } : {}),
+        ...(propertyType ? { property_type: propertyType } : {}),
+        ...(bedrooms !== undefined ? { bedrooms } : {}),
+        ...(isDirectFromOwner !== undefined ? { is_direct_from_owner: isDirectFromOwner } : {}),
       },
     });
     await tx.authUser.create({

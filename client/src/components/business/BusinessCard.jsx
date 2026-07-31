@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, MapPin, ShieldCheck, ShieldX, ArrowRight, Clock, Building, Car } from 'lucide-react';
+import { Star, MapPin, ShieldCheck, ShieldX, ArrowRight, Clock, Building, Car, CalendarDays } from 'lucide-react';
 import { api } from '../../services/api.js';
 
 function formatPrice(price, currency = 'NGN') {
@@ -41,6 +41,8 @@ function BusinessCard({ business }) {
           ? `${Math.round(responseMinutes / 60)}h`
           : `${Math.round(responseMinutes / (60 * 24))}d`;
 
+  const unavailable = business.availability_status === 'sold' || business.availability_status === 'rented';
+
   return (
     <div className={`business-card-container ${business.is_featured ? 'featured-border' : ''}`}>
       <Link to={`/business/${business.id}`} className="business-card-link-wrapper">
@@ -51,6 +53,7 @@ function BusinessCard({ business }) {
             src={business.images?.[0] || defaultImage}
             alt={business.name}
             loading="lazy"
+            style={unavailable ? { filter: 'grayscale(0.9) brightness(0.75)' } : undefined}
           />
           
           {/* Card Overlays */}
@@ -61,7 +64,24 @@ function BusinessCard({ business }) {
             {business.is_recommended && (
               <span className="overlay-badge recommended-overlay">Top Rated</span>
             )}
+            {unavailable && (
+              <span className="overlay-badge sold-overlay">
+                {business.availability_status === 'sold' ? 'SOLD' : 'RENTED'}
+              </span>
+            )}
           </div>
+          {unavailable && (
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end',
+              background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent 60%)',
+            }}>
+              <div style={{
+                width: '100%', padding: '8px 12px', color: '#fff', fontSize: '0.72rem', fontWeight: 600,
+              }}>
+                No longer available · {new Date(business.sold_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Card Content Body */}
@@ -244,7 +264,15 @@ function BusinessCard({ business }) {
             </div>
           )}
 
-          {/* Meta: response time */}
+          {/* Meta: listing date + response time */}
+          {business.created_at && catType !== 'service' && (
+            <div className="business-card-meta" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 6 }}>
+              <CalendarDays size={13} aria-hidden="true" />
+              <span title="Listing date">
+                Listed {new Date(business.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+          )}
           {responseLabel !== null && (
             <div className="business-card-meta" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 6 }}>
               <Clock size={13} aria-hidden="true" />

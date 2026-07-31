@@ -1492,6 +1492,11 @@ ul, ol {
   color: #fff;
 }
 
+.sold-overlay {
+  background: #dc2626;
+  color: #fff;
+}
+
 .business-card-body {
   padding: 16px;
   flex: 1;

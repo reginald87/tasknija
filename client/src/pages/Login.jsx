@@ -48,7 +48,7 @@ function Login() {
     setLoading(false);
     toast.success('Signed in successfully.');
     if (role === 'admin') return navigate('/admin');
-    if (role === 'vendor') return navigate('/vendor-dashboard');
+    if (role === 'vendor' || role === 'property_owner') return navigate('/vendor-dashboard');
     return navigate('/dashboard');
   }
 
@@ -67,14 +67,14 @@ function Login() {
           <Logo size={44} variant="light" link={false} />
 
           <div className="auth-brand-headline">
-            <h1>Connect with Nigeria's best service professionals</h1>
-            <p>Verified, rated and ready to help. Find electricians, plumbers, cleaners and more — all in one place.</p>
+            <h1>Connect with Nigeria's best professionals and property owners</h1>
+            <p>Verified and rated. Find electricians, plumbers, cleaners, houses for rent and sale — directly from owners, no middlemen.</p>
           </div>
 
           <div className="auth-trust-list">
             <div className="auth-trust-item">
               <div className="auth-trust-dot"></div>
-              <span>Over 500 verified service providers</span>
+              <span>Verified service providers & direct property owners</span>
             </div>
             <div className="auth-trust-item">
               <div className="auth-trust-dot"></div>

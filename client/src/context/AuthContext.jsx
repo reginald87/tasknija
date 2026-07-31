@@ -47,9 +47,9 @@ export function AuthProvider({ children }) {
     if (data?.profile) setProfile(data.profile);
   }
 
-  async function signUp(email, password, fullName, role = 'user', businessName) {
+  async function signUp(email, password, fullName, role = 'user', businessName, propertyDetails = {}) {
     try {
-      const res = await api.post('/auth/register', { email, password, fullName, role, businessName });
+      const res = await api.post('/auth/register', { email, password, fullName, role, businessName, ...propertyDetails });
       if (!res?.success) {
         const message = res?.error?.message || 'Registration failed.';
         return { data: null, error: { message } };

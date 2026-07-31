@@ -10,7 +10,7 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import {
   LayoutDashboard, MessageCircle, DollarSign, Briefcase, Clock, CheckCircle,
   AlertCircle, Plus, Search, ChevronRight, User, ShieldAlert, X, Loader,
-  Heart, Menu, Wallet, Star,
+  Heart, Menu, Wallet, Star, Home,
 } from 'lucide-react';
 
 const statusColors = {
@@ -296,7 +296,7 @@ function CustomerDashboard() {
               <div>
                 <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Welcome, {profile?.full_name || 'Customer'}!</h1>
                 <p style={{ margin: '4px 0 0', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                  Manage your conversations, transactions, and work progress
+                  Manage your conversations, transactions, work progress, and property finds
                 </p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -312,6 +312,9 @@ function CustomerDashboard() {
                 </button>
                 <Link to="/search" style={{ ...btnOutline, textDecoration: 'none' }}>
                   <Search size={16} /> Find Services
+                </Link>
+                <Link to="/category/houses-for-rent" style={{ ...btnOutline, textDecoration: 'none' }}>
+                  <Home size={16} /> Browse Properties
                 </Link>
               </div>
             </div>

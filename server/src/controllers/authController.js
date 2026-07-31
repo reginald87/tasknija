@@ -50,7 +50,7 @@ export async function register(req, res, next) {
         )
       );
     }
-    const { email, password, fullName, role, businessName } = parsed.data;
+    const { email, password, fullName, role, businessName, listingType, propertyType, bedrooms, isDirectFromOwner } = parsed.data;
 
     // Generic response on duplicate to avoid enumeration.
     const existing = await getAuthUserByEmail(email);
@@ -58,7 +58,16 @@ export async function register(req, res, next) {
       return res.status(200).json(genericRegisterMessage());
     }
 
-    const profile = await createUser({ email, password, fullName, role });
+    const profile = await createUser({
+      email,
+      password,
+      fullName,
+      role,
+      listingType,
+      propertyType,
+      bedrooms,
+      isDirectFromOwner
+    });
 
     // Send a welcome/verification email (no-op if SMTP not configured).
     try {

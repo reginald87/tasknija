@@ -1,4 +1,4 @@
-// Prisma schema for TaskNija (migrated from Supabase/Postgres to SQLite).
+// Prisma schema for TaskNija (SQLite).
 // SQLite notes:
 //  - JSON is stored as String (application serializes/parses).
 //  - No native enums; CHECK constraints are applied via migrations/seed validation in code.
@@ -37,6 +37,11 @@ model Profile {
   role         String   @default("user") // user | vendor | admin | super_admin
   is_verified  Boolean  @default(false)
   priority_support Boolean @default(false) // derived from active subscription plan
+  // Property-owner default listing preferences (used to prefill the first listing)
+  listing_type        String? // sale | rent | lease
+  property_type       String? // apartment | duplex | bungalow | ...
+  bedrooms            Int?
+  is_direct_from_owner Boolean @default(false)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -123,6 +128,10 @@ model Business {
 
   // Direct-from-owner flag (true = no middleman)
   is_direct_from_owner Boolean @default(true)
+
+  // Availability: available | sold | rented (managed by the owner)
+  availability_status String @default("available")
+  sold_at            DateTime?  // timestamp when marked sold/rented (unavailable)
 
   // Generic extensible attributes (JSON)
   attributes        String?

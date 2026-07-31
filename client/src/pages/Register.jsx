@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Alert from '../components/common/Alert';
 import Logo from '../components/common/Logo';
-import { Mail, Lock, Eye, EyeOff, User, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, UserPlus, CheckCircle2, Home, Building2, Tag, Ruler } from 'lucide-react';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -14,8 +14,12 @@ const registerSchema = z.object({
     .min(8, 'At least 8 characters')
     .regex(/[A-Za-z]/, 'At least one letter')
     .regex(/[0-9]/, 'At least one number'),
-  role: z.enum(['user', 'vendor']),
-  businessName: z.string().optional()
+  role: z.enum(['user', 'vendor', 'property_owner']),
+  businessName: z.string().optional(),
+  listingType: z.enum(['sale', 'rent', 'lease']).optional(),
+  propertyType: z.string().optional(),
+  bedrooms: z.coerce.number().int().min(0).max(20).optional(),
+  isDirectFromOwner: z.boolean().optional(),
 }).refine(
   (d) => d.role !== 'vendor' || (typeof d.businessName === 'string' && d.businessName.length >= 2),
   { message: 'Business name required for vendor registration', path: ['businessName'] }
@@ -41,6 +45,10 @@ function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [role, setRole] = useState('user');
+  const [listingType, setListingType] = useState('');
+  const [propertyType, setPropertyType] = useState('');
+  const [bedrooms, setBedrooms] = useState('');
+  const [isDirectFromOwner, setIsDirectFromOwner] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -63,7 +71,11 @@ function Register() {
       email,
       password,
       role,
-      businessName: businessName || undefined
+      businessName: businessName || undefined,
+      listingType: listingType || undefined,
+      propertyType: propertyType || undefined,
+      bedrooms: bedrooms ? parseInt(bedrooms, 10) : undefined,
+      isDirectFromOwner,
     });
     if (!result.success) {
       const map = {};
@@ -80,7 +92,12 @@ function Register() {
     }
 
     setLoading(true);
-    const { data, error: err } = await signUp(email, password, fullName, role, businessName || undefined);
+    const { data, error: err } = await signUp(email, password, fullName, role, businessName || undefined, {
+      listingType: listingType || undefined,
+      propertyType: propertyType || undefined,
+      bedrooms: bedrooms ? parseInt(bedrooms, 10) : undefined,
+      isDirectFromOwner,
+    });
     setLoading(false);
     if (err) { setError(err.message); toast.error(err.message); return; }
     if (data?.user && !data.session) {
@@ -88,7 +105,11 @@ function Register() {
       setRegisteredEmail(data?.user?.email || email);
     } else {
       toast.success('Account created!');
-      navigate('/');
+      if (role === 'vendor' || role === 'property_owner') {
+        navigate('/vendor-dashboard');
+      } else {
+        navigate('/');
+      }
     }
   }
 
@@ -139,8 +160,8 @@ function Register() {
           <Logo size={44} variant="light" link={false} />
 
           <div className="auth-brand-headline">
-            <h1>Grow your business or find the help you need</h1>
-            <p>Join thousands of Nigerian customers and skilled tradespeople already on TaskNija.</p>
+            <h1>Grow your business, list your property, or find the help you need</h1>
+            <p>Join thousands of Nigerian customers, skilled tradespeople and property owners already on TaskNija.</p>
           </div>
 
           <div className="auth-trust-list">
@@ -150,11 +171,11 @@ function Register() {
             </div>
             <div className="auth-trust-item">
               <div className="auth-trust-dot"></div>
-              <span>List your business and get discovered</span>
+              <span>List your business or property and get discovered</span>
             </div>
             <div className="auth-trust-item">
               <div className="auth-trust-dot"></div>
-              <span>Verified profiles, real reviews</span>
+              <span>Direct from owners — no middlemen</span>
             </div>
           </div>
         </div>
@@ -212,6 +233,13 @@ function Register() {
               >
                 🏪 I'm a Vendor
               </button>
+              <button
+                type="button"
+                className={`auth-role-btn ${role === 'property_owner' ? 'active' : ''}`}
+                onClick={() => setRole('property_owner')}
+              >
+                🏠 I'm a Property Owner
+              </button>
             </div>
 
             <div className="auth-field-group">
@@ -233,26 +261,106 @@ function Register() {
               {fieldErrors.fullName && <span id="reg-name-error" className="field-error" role="alert">{fieldErrors.fullName}</span>}
             </div>
 
-            {role === 'vendor' && (
-              <div className="auth-field-group">
-                <label className="auth-label" htmlFor="reg-bizname">Business Name</label>
-                <div className="auth-input-wrapper">
-                  <User size={17} className="auth-input-icon" />
-                  <input
-                    id="reg-bizname"
-                    type="text"
-                    className="auth-input"
-                    placeholder="e.g. Klinfix Laundry"
-                    value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
-                    aria-invalid={!!fieldErrors.businessName}
-                    aria-describedby={fieldErrors.businessName ? 'reg-bizname-error' : undefined}
-                    required
-                  />
-                </div>
-                {fieldErrors.businessName && <span id="reg-bizname-error" className="field-error" role="alert">{fieldErrors.businessName}</span>}
-              </div>
-            )}
+                {role === 'vendor' && (
+                  <div className="auth-field-group">
+                    <label className="auth-label" htmlFor="reg-bizname">Business Name</label>
+                    <div className="auth-input-wrapper">
+                      <User size={17} className="auth-input-icon" />
+                      <input
+                        id="reg-bizname"
+                        type="text"
+                        className="auth-input"
+                        placeholder="e.g. Klinfix Laundry"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        aria-invalid={!!fieldErrors.businessName}
+                        aria-describedby={fieldErrors.businessName ? 'reg-bizname-error' : undefined}
+                        required
+                      />
+                    </div>
+                    {fieldErrors.businessName && <span id="reg-bizname-error" className="field-error" role="alert">{fieldErrors.businessName}</span>}
+                  </div>
+                )}
+
+                {role === 'property_owner' && (
+                  <>
+                    <div className="auth-field-group">
+                      <label className="auth-label" htmlFor="reg-listing-type">Listing Type</label>
+                      <div className="auth-input-wrapper">
+                        <Tag size={17} className="auth-input-icon" />
+                        <select
+                          id="reg-listing-type"
+                          className="auth-input"
+                          value={listingType}
+                          onChange={(e) => setListingType(e.target.value)}
+                          required
+                        >
+                          <option value="">What are you listing?</option>
+                          <option value="sale">For Sale</option>
+                          <option value="rent">For Rent</option>
+                          <option value="lease">For Lease</option>
+                        </select>
+                      </div>
+                      {fieldErrors.listingType && <span className="field-error" role="alert">{fieldErrors.listingType}</span>}
+                    </div>
+
+                    <div className="auth-field-group">
+                      <label className="auth-label" htmlFor="reg-property-type">Property Type</label>
+                      <div className="auth-input-wrapper">
+                        <Building2 size={17} className="auth-input-icon" />
+                        <select
+                          id="reg-property-type"
+                          className="auth-input"
+                          value={propertyType}
+                          onChange={(e) => setPropertyType(e.target.value)}
+                          required
+                        >
+                          <option value="">Property type</option>
+                          <option value="apartment">Apartment</option>
+                          <option value="duplex">Duplex</option>
+                          <option value="bungalow">Bungalow</option>
+                          <option value="terraced">Terraced House</option>
+                          <option value="detached">Detached House</option>
+                          <option value="penthouse">Penthouse</option>
+                          <option value="land">Land</option>
+                          <option value="commercial">Commercial</option>
+                        </select>
+                      </div>
+                      {fieldErrors.propertyType && <span className="field-error" role="alert">{fieldErrors.propertyType}</span>}
+                    </div>
+
+                    <div className="auth-field-group">
+                      <label className="auth-label" htmlFor="reg-bedrooms">Bedrooms</label>
+                      <div className="auth-input-wrapper">
+                        <Home size={17} className="auth-input-icon" />
+                        <input
+                          id="reg-bedrooms"
+                          type="number"
+                          min="0"
+                          max="20"
+                          className="auth-input"
+                          placeholder="e.g. 3"
+                          value={bedrooms}
+                          onChange={(e) => setBedrooms(e.target.value)}
+                        />
+                      </div>
+                      {fieldErrors.bedrooms && <span className="field-error" role="alert">{fieldErrors.bedrooms}</span>}
+                    </div>
+
+                    <div className="auth-field-group">
+                      <label className="auth-label" htmlFor="reg-direct-owner">
+                        <input
+                          id="reg-direct-owner"
+                          type="checkbox"
+                          checked={isDirectFromOwner}
+                          onChange={(e) => setIsDirectFromOwner(e.target.checked)}
+                          style={{ marginRight: 8 }}
+                        />
+                        I am the direct owner (no middlemen/agents)
+                      </label>
+                    </div>
+                  </>
+                )}
 
             <div className="auth-field-group">
               <label className="auth-label" htmlFor="reg-email">Email Address</label>

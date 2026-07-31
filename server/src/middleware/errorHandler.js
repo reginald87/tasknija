@@ -21,7 +21,6 @@ export class AppError extends Error {
 }
 
 function pgCode(err) {
-  // Supabase / pg errors expose `.code` (e.g. '23505')
   return err?.code || err?.cause?.code || null;
 }
 
@@ -85,7 +84,7 @@ export function errorHandler(err, req, res, _next) {
   res.status(statusCode).json(body);
 }
 
-/** Strip internal Supabase / DB details from error messages sent to clients */
+/** Strip internal DB details from error messages sent to clients */
 export function sanitizeError(error) {
   if (!error) return 'Unknown error';
   if (error.code === 'PGRST116') return 'Not found';

@@ -85,7 +85,7 @@ function Sidebar({ showDesktop = true, isMobileOpen, onMobileClose }) {
     <>
       <div className="sidebar-drawer-section-label">Account</div>
       <Link
-        to={profile?.role === 'admin' || profile?.role === 'super_admin' ? '/admin' : profile?.role === 'vendor' ? '/vendor-dashboard' : '/dashboard'}
+        to={profile?.role === 'admin' || profile?.role === 'super_admin' ? '/admin' : profile?.role === 'vendor' || profile?.role === 'property_owner' ? '/vendor-dashboard' : '/dashboard'}
         className="sidebar-drawer-link"
         onClick={onMobileClose}
       >

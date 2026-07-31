@@ -154,13 +154,11 @@ function BusinessPage() {
     api.get(`/businesses/${id}`).then((res) => {
       if (res.success) {
         setBusiness(res.data);
-        if (res.data.category?.slug) {
-          api.get(`/businesses?category=${res.data.category.slug}`).then((relatedRes) => {
-            if (relatedRes.success) {
-              setRelatedBusinesses(relatedRes.data.filter(b => b.id !== id).slice(0, 4));
-            }
-          }).catch(() => {});
-        }
+        api.get(`/businesses/${id}/related`).then((relatedRes) => {
+          if (relatedRes.success) {
+            setRelatedBusinesses(relatedRes.data.filter(b => b.id !== id).slice(0, 6));
+          }
+        }).catch(() => {});
       } else {
         setBusinessError(new Error(res.error || 'Failed to load business'));
       }
@@ -223,8 +221,40 @@ function BusinessPage() {
   const reviews = business.reviews || [];
   const certifications = business.certifications || [];
 
+  const isUnavailable = business.availability_status === 'sold' || business.availability_status === 'rented';
+  const unavailableLabel = business.availability_status === 'sold' ? 'sold' : 'rented';
+
+  const relatedTitle = (() => {
+    switch (business.category?.type) {
+      case 'property': return 'Related Properties';
+      case 'rental': return 'Related Rentals';
+      case 'vehicle': return 'Related Vehicles';
+      case 'service': return 'Related Services';
+      default: return `More ${business.category?.name || 'Listings'}`;
+    }
+  })();
+
   return (
     <div className="bp-wrapper">
+      {/* No longer available banner */}
+      {isUnavailable && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, padding: '14px 18px',
+          borderRadius: 'var(--radius-md)', border: '1.5px solid #fecaca', background: '#fef2f2',
+        }}>
+          <ShieldCheck size={22} style={{ color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <strong style={{ color: '#991b1b', fontSize: '0.95rem', display: 'block' }}>
+              This property is no longer available — it has been {unavailableLabel}.
+            </strong>
+            <span style={{ color: '#b91c1c', fontSize: '0.82rem' }}>
+              {business.sold_at ? `Marked ${unavailableLabel} on ${new Date(business.sold_at).toLocaleString('en-NG', { day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'No longer accepting enquiries'}
+              {business.created_at ? ` · Listed on ${new Date(business.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Banner */}
       <div className="bp-banner">
         <div className="bp-banner-content">
@@ -291,6 +321,12 @@ function BusinessPage() {
                   <div>
                     <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Listing Type</span>
                     <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.listing_type}</span>
+                  </div>
+                )}
+                {business.created_at && business.category?.type !== 'service' && (
+                  <div>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Listed On</span>
+                    <span style={{ fontWeight: 600 }}>{new Date(business.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   </div>
                 )}
                 {business.price != null && (
@@ -505,28 +541,50 @@ function BusinessPage() {
                   <span>Balance: <strong>₦{Number(wallet.balance).toLocaleString()}</strong></span>
                 </div>
               )}
-              <button
-                className="bp-action-btn bp-action-hire"
-                onClick={() => setShowHireModal(true)}
-                style={{ background: 'var(--color-primary)', color: '#fff' }}
-              >
-                <DollarSign size={18} />
-                Hire Now
-              </button>
-              <button
-                className="bp-action-btn bp-action-quote"
-                onClick={() => requestQuote()}
-                style={{ background: 'transparent', color: 'var(--color-primary)', border: '1.5px solid var(--color-primary)' }}
-              >
-                <MessageCircle size={18} />
-                Request a quote
-              </button>
+              {isUnavailable ? (
+                <button
+                  className="bp-action-btn"
+                  disabled
+                  style={{ background: '#dc2626', color: '#fff', opacity: 0.85, cursor: 'not-allowed' }}
+                >
+                  <DollarSign size={18} />
+                  No Longer Available
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="bp-action-btn bp-action-hire"
+                    onClick={() => setShowHireModal(true)}
+                    style={{ background: 'var(--color-primary)', color: '#fff' }}
+                  >
+                    <DollarSign size={18} />
+                    Hire Now
+                  </button>
+                  <button
+                    className="bp-action-btn bp-action-quote"
+                    onClick={() => requestQuote()}
+                    style={{ background: 'transparent', color: 'var(--color-primary)', border: '1.5px solid var(--color-primary)' }}
+                  >
+                    <MessageCircle size={18} />
+                    Request a quote
+                  </button>
+                </>
+              )}
             </div>
           )}
 
           {/* Contact Actions */}
           <div className="bp-sidebar-actions">
-            {user ? (
+            {isUnavailable ? (
+              <button
+                className="bp-action-btn"
+                disabled
+                style={{ background: 'transparent', color: '#991b1b', border: '1.5px solid #fecaca', cursor: 'not-allowed', opacity: 0.85 }}
+              >
+                <ShieldCheck size={18} />
+                {unavailableLabel === 'sold' ? 'Sold' : 'Rented'} — enquiries closed
+              </button>
+            ) : user ? (
               <>
                 {msgError && <p style={{ color: 'var(--color-danger)', fontSize: '0.8rem', marginBottom: 8 }}>{msgError}</p>}
                 <button
@@ -664,7 +722,7 @@ function BusinessPage() {
           <div className="bp-related-header">
             <h2 className="bp-related-title">
               <Award size={20} className="bp-related-icon" />
-              More {business.category?.name || 'Service Providers'}
+              {relatedTitle}
             </h2>
             <Link to={`/categories/${business.category?.slug || ''}`} className="bp-related-link">
               View All &gt;

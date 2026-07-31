@@ -198,7 +198,7 @@ function Header({ onMenuToggle }) {
               {userMenuOpen && (
                 <div className="user-dropdown-menu">
                   <Link
-                    to={profile?.role === 'admin' || profile?.role === 'super_admin' ? '/admin' : profile?.role === 'vendor' ? '/vendor-dashboard' : '/dashboard'}
+                    to={profile?.role === 'admin' || profile?.role === 'super_admin' ? '/admin' : profile?.role === 'vendor' || profile?.role === 'property_owner' ? '/vendor-dashboard' : '/dashboard'}
                     className="user-dropdown-item"
                     onClick={() => setUserMenuOpen(false)}
                   >
