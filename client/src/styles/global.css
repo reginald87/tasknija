@@ -640,7 +640,7 @@ ul, ol {
   font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: -0.2px;
-  color: var(--color-secondary);
+  color: var(--color-text);
 }
 
 .sidebar-toggle {
@@ -1200,7 +1200,7 @@ ul, ol {
 .section-title-group h2 {
   font-size: 1.3rem;
   font-weight: 800;
-  color: var(--color-secondary);
+  color: var(--color-text);
 }
 
 .view-all-link {
