@@ -10,7 +10,9 @@ import EmptyState from '../components/common/EmptyState';
 import {
   MapPin, Phone, Mail, Globe, Star, ShieldCheck, Award,
   ChevronLeft, ChevronRight, X, MessageCircle, Clock, User, ChevronDown,
-  DollarSign, Wallet, Loader
+  DollarSign, Wallet, Loader, Home, KeyRound, Car, Briefcase, Building2,
+  BedDouble, Bath, Ruler, Sofa, Fuel, Gauge, CalendarDays, FileText,
+  CheckCircle2, Instagram, Facebook
 } from 'lucide-react';
 
 function StarRow({ rating, size = 16 }) {
@@ -104,6 +106,53 @@ function Lightbox({ images, startIndex, onClose }) {
       <div className="bp-lightbox-counter">{idx + 1} / {images.length}</div>
     </div>
   );
+}
+
+const LISTING_SECTION_COPY = {
+  property: { about: 'About This Property', details: 'Property Highlights', icon: Home },
+  rental: { about: 'About This Rental', details: 'Rental Highlights', icon: KeyRound },
+  vehicle: { about: 'About This Vehicle', details: 'Vehicle Specifications', icon: Car },
+  service: { about: 'About This Service', details: 'Service Details', icon: Briefcase },
+  default: { about: 'About This Listing', details: 'Listing Details', icon: Building2 },
+};
+
+function titleCase(str) {
+  if (!str) return '';
+  return String(str)
+    .split(/[\s_-]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function formatPriceLine(business) {
+  if (business.price == null) return null;
+  if (business.price_type === 'call_for_price') return 'Price on request';
+  let text = `₦${Number(business.price).toLocaleString()}`;
+  if (business.listing_type === 'rent') text += ' /year';
+  if (business.price_type === 'negotiable') text += ' · Negotiable';
+  return text;
+}
+
+function FeaturePills({ attributes }) {
+  if (!attributes) return null;
+  const groups = [];
+  if (Array.isArray(attributes)) {
+    if (attributes.length) groups.push({ label: null, items: attributes.filter(Boolean) });
+  } else {
+    for (const [key, value] of Object.entries(attributes)) {
+      if (Array.isArray(value) && value.length) groups.push({ label: titleCase(key), items: value.filter(Boolean) });
+      else if (typeof value === 'string' && value.trim()) groups.push({ label: titleCase(key), items: [value.trim()] });
+    }
+  }
+  if (!groups.length) return null;
+  return groups.map((group, i) => (
+    <div key={i} style={group.label ? { marginBottom: 12 } : undefined}>
+      {group.label && <span className="bp-feature-group-label">{group.label}</span>}
+      <div className="bp-feature-list">
+        {group.items.map((item, j) => <span key={j} className="bp-feature-chip">{item}</span>)}
+      </div>
+    </div>
+  ));
 }
 
 function BusinessPage() {
@@ -224,6 +273,42 @@ function BusinessPage() {
   const isUnavailable = business.availability_status === 'sold' || business.availability_status === 'rented';
   const unavailableLabel = business.availability_status === 'sold' ? 'sold' : 'rented';
 
+  const type = business.category?.type || 'default';
+  const copy = LISTING_SECTION_COPY[type] || LISTING_SECTION_COPY.default;
+  const SectionIcon = copy.icon;
+
+  const highlights = [];
+  if (type === 'property' || type === 'rental') {
+    if (business.bedrooms != null) highlights.push({ icon: BedDouble, label: 'Bedrooms', value: business.bedrooms });
+    if (business.bathrooms != null) highlights.push({ icon: Bath, label: 'Bathrooms', value: business.bathrooms });
+    if (business.area_sqm != null) highlights.push({ icon: Ruler, label: 'Area', value: `${business.area_sqm} sqm` });
+    if (business.furnished != null) highlights.push({ icon: Sofa, label: 'Furnished', value: business.furnished ? 'Yes' : 'No' });
+  }
+
+  const specs = [];
+  if (business.listing_type) specs.push({ label: 'Listing Type', value: titleCase(business.listing_type) });
+  if (business.price != null) specs.push({ label: 'Price', value: formatPriceLine(business), price: true });
+  if (business.condition) specs.push({ label: 'Condition', value: titleCase(business.condition) });
+  if (business.property_type) specs.push({ label: 'Property Type', value: titleCase(business.property_type) });
+  if (business.year_built) specs.push({ label: 'Year Built', value: business.year_built });
+  if (business.vehicle_type) specs.push({ label: 'Vehicle Type', value: titleCase(business.vehicle_type) });
+  if (business.fuel_type) specs.push({ label: 'Fuel Type', value: titleCase(business.fuel_type) });
+  if (business.transmission) specs.push({ label: 'Transmission', value: titleCase(business.transmission) });
+  if (business.mileage != null) specs.push({ label: 'Mileage', value: `${business.mileage.toLocaleString()} km` });
+  if (business.year_of_manufacture) specs.push({ label: 'Year', value: business.year_of_manufacture });
+  if (type !== 'service' && business.created_at) {
+    specs.push({
+      label: 'Listed On',
+      value: new Date(business.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }),
+    });
+  }
+
+  const hours = business.operating_hours && Object.keys(business.operating_hours).length > 0
+    ? Object.entries(business.operating_hours)
+    : [];
+
+  const featurePills = FeaturePills({ attributes: business.attributes });
+
   const relatedTitle = (() => {
     switch (business.category?.type) {
       case 'property': return 'Related Properties';
@@ -307,111 +392,85 @@ function BusinessPage() {
           <ProductGallery images={images} onImageClick={setLightboxIdx} />
 
           <div className="bp-content-section">
-            <h2 className="bp-section-heading">About This Business</h2>
+            <h2 className="bp-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SectionIcon size={18} className="bp-section-icon" />
+              {copy.about}
+            </h2>
             <p className="bp-description">{business.description || 'No description provided.'}</p>
           </div>
 
           {/* Property/Listing details */}
-          {(business.listing_type || business.price != null || business.property_type || business.bedrooms != null ||
-            business.vehicle_type || business.fuel_type) && (
+          {(highlights.length > 0 || specs.length > 0) && (
             <div className="bp-content-section">
-              <h2 className="bp-section-heading">Listing Details</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                {business.listing_type && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Listing Type</span>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.listing_type}</span>
+              <h2 className="bp-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <SectionIcon size={18} className="bp-section-icon" />
+                {copy.details}
+              </h2>
+              {highlights.length > 0 && (
+                <div className="bp-highlight-strip">
+                  {highlights.map((h, i) => (
+                    <div key={i} className="bp-highlight-tile">
+                      <h.icon size={18} className="bp-hl-icon" />
+                      <span className="bp-hl-value">{h.value}</span>
+                      <span className="bp-hl-label">{h.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {specs.length > 0 && (
+                <div className="bp-spec-grid">
+                  {specs.map((s, i) => (
+                    <div key={i} className="bp-spec-item">
+                      <span className="bp-spec-label">{s.label}</span>
+                      <span className={s.price ? 'bp-spec-value bp-spec-price' : 'bp-spec-value'}>{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Facilities & Features */}
+          {type !== 'service' && (
+            <div className="bp-content-section">
+              <h2 className="bp-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={18} className="bp-section-icon" />
+                Facilities &amp; Features
+              </h2>
+              {featurePills || (
+                <p className="bp-description" style={{ color: 'var(--color-text-muted)' }}>
+                  No extra features have been listed for this {type === 'vehicle' ? 'vehicle' : 'property'} yet.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Operating Hours */}
+          {hours.length > 0 && (
+            <div className="bp-content-section">
+              <h2 className="bp-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={18} className="bp-section-icon" />
+                Operating Hours
+              </h2>
+              <div className="bp-hours-list">
+                {hours.map(([day, time]) => (
+                  <div key={day} className="bp-hours-row">
+                    <span className="bp-hours-day">{day}</span>
+                    <span className="bp-hours-time">{Array.isArray(time) ? time.join(' · ') : time}</span>
                   </div>
-                )}
-                {business.created_at && business.category?.type !== 'service' && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Listed On</span>
-                    <span style={{ fontWeight: 600 }}>{new Date(business.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                  </div>
-                )}
-                {business.price != null && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Price</span>
-                    <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-primary)' }}>
-                      ₦{Number(business.price).toLocaleString()}
-                      {business.listing_type === 'rent' && <span style={{ fontSize: '0.78rem', fontWeight: 400, color: 'var(--color-text-muted)' }}> /year</span>}
-                      {business.price_type === 'negotiable' && <span style={{ fontSize: '0.78rem', fontWeight: 400, color: 'var(--color-text-muted)' }}> (Negotiable)</span>}
-                    </span>
-                  </div>
-                )}
-                {business.condition && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Condition</span>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.condition}</span>
-                  </div>
-                )}
-                {business.property_type && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Property Type</span>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.property_type}</span>
-                  </div>
-                )}
-                {business.bedrooms != null && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Bedrooms</span>
-                    <span style={{ fontWeight: 600 }}>{business.bedrooms}</span>
-                  </div>
-                )}
-                {business.bathrooms != null && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Bathrooms</span>
-                    <span style={{ fontWeight: 600 }}>{business.bathrooms}</span>
-                  </div>
-                )}
-                {business.area_sqm != null && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Area</span>
-                    <span style={{ fontWeight: 600 }}>{business.area_sqm} sqm</span>
-                  </div>
-                )}
-                {business.year_built && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Year Built</span>
-                    <span style={{ fontWeight: 600 }}>{business.year_built}</span>
-                  </div>
-                )}
-                {business.furnished != null && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Furnished</span>
-                    <span style={{ fontWeight: 600 }}>{business.furnished ? 'Yes' : 'No'}</span>
-                  </div>
-                )}
-                {business.vehicle_type && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Vehicle Type</span>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.vehicle_type}</span>
-                  </div>
-                )}
-                {business.fuel_type && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Fuel Type</span>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.fuel_type}</span>
-                  </div>
-                )}
-                {business.transmission && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Transmission</span>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{business.transmission}</span>
-                  </div>
-                )}
-                {business.mileage != null && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Mileage</span>
-                    <span style={{ fontWeight: 600 }}>{business.mileage.toLocaleString()} km</span>
-                  </div>
-                )}
-                {business.year_of_manufacture && (
-                  <div>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'block' }}>Year</span>
-                    <span style={{ fontWeight: 600 }}>{business.year_of_manufacture}</span>
-                  </div>
-                )}
+                ))}
               </div>
+            </div>
+          )}
+
+          {/* Service Terms */}
+          {type === 'service' && business.service_terms && (
+            <div className="bp-content-section">
+              <h2 className="bp-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={18} className="bp-section-icon" />
+                Service Terms
+              </h2>
+              <p className="bp-service-terms">{business.service_terms}</p>
             </div>
           )}
 
@@ -691,6 +750,33 @@ function BusinessPage() {
                   <div>
                     <span className="bp-contact-label">Website</span>
                     <a href={business.website} target="_blank" rel="noreferrer" className="bp-contact-value bp-contact-link">{business.website}</a>
+                  </div>
+                </div>
+              )}
+              {business.whatsapp && (
+                <div className="bp-contact-item">
+                  <div className="bp-contact-icon-wrap"><MessageCircle size={18} /></div>
+                  <div>
+                    <span className="bp-contact-label">WhatsApp</span>
+                    <a href={`https://wa.me/${business.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="bp-contact-value bp-contact-link">{business.whatsapp}</a>
+                  </div>
+                </div>
+              )}
+              {business.instagram && (
+                <div className="bp-contact-item">
+                  <div className="bp-contact-icon-wrap"><Instagram size={18} /></div>
+                  <div>
+                    <span className="bp-contact-label">Instagram</span>
+                    <a href={`https://instagram.com/${business.instagram.replace(/^@/, '')}`} target="_blank" rel="noreferrer" className="bp-contact-value bp-contact-link">@{business.instagram.replace(/^@/, '')}</a>
+                  </div>
+                </div>
+              )}
+              {business.facebook && (
+                <div className="bp-contact-item">
+                  <div className="bp-contact-icon-wrap"><Facebook size={18} /></div>
+                  <div>
+                    <span className="bp-contact-label">Facebook</span>
+                    <a href={`https://facebook.com/${business.facebook}`} target="_blank" rel="noreferrer" className="bp-contact-value bp-contact-link">{business.facebook}</a>
                   </div>
                 </div>
               )}

@@ -494,6 +494,7 @@ export async function create(req, res, next) {
         mileage: data.mileage,
         year_of_manufacture: data.year_of_manufacture,
         attributes: data.attributes ? JSON.stringify(data.attributes) : undefined,
+        operating_hours: data.operating_hours ? JSON.stringify(data.operating_hours) : undefined,
       },
     });
 
@@ -527,6 +528,7 @@ export async function update(req, res, next) {
     if ('images' in safeUpdates) safeUpdates.images = stringifyJson(safeUpdates.images);
     if ('certifications' in safeUpdates) safeUpdates.certifications = stringifyJson(safeUpdates.certifications);
     if ('attributes' in safeUpdates) safeUpdates.attributes = stringifyJson(safeUpdates.attributes);
+    if ('operating_hours' in safeUpdates) safeUpdates.operating_hours = stringifyJson(safeUpdates.operating_hours);
 
     if (Object.keys(safeUpdates).length === 0 && serviceTerms === undefined) {
       throw new AppError(400, 'NO_UPDATES', 'No updatable fields provided.');
