@@ -10,7 +10,7 @@ import EmptyState from '../components/common/EmptyState';
 import Alert from '../components/common/Alert';
 import ConfirmModal from '../components/common/ConfirmModal';
 import {
-  LayoutDashboard, Store, DollarSign, ShieldAlert, TrendingUp, Calendar,
+  LayoutDashboard, Store, DollarSign, ShieldAlert, ShieldCheck, TrendingUp, Calendar,
   ArrowUpFromLine, Clock, CheckCircle, AlertCircle, Plus, X, Upload, Image,
   FileText, ChevronRight, ChevronLeft, Menu, Wallet, Loader, Star, Crosshair,
   Home, Tag,
@@ -25,6 +25,7 @@ const SIDEBAR_ITEMS = [
   { key: 'overview', label: 'Overview', icon: LayoutDashboard },
   { key: 'businesses', label: 'My Businesses', icon: Store },
   { key: 'transactions', label: 'Transactions', icon: DollarSign },
+  { key: 'verification', label: 'Verification', icon: ShieldCheck },
   { key: 'subscription', label: 'Subscription', icon: ShieldAlert },
 ];
 
@@ -292,6 +293,13 @@ function VendorDashboard() {
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [selectedCycle, setSelectedCycle] = useState('quarterly');
   const [subMsg, setSubMsg] = useState('');
+  const [myVerification, setMyVerification] = useState(null);
+  const [vForm, setVForm] = useState({ idType: '', idNumber: '', notes: '' });
+  const [vDocs, setVDocs] = useState([]);
+  const [vBusy, setVBusy] = useState(false);
+  const [vMsg, setVMsg] = useState('');
+  const [vErr, setVErr] = useState('');
+  const vDocInputRef = useRef(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -302,16 +310,100 @@ function VendorDashboard() {
     fetchSubPackages();
     fetchMySub();
     fetchWithdrawRequests();
+    fetchMyVerification();
     api.get('/categories').then((res) => {
       if (res.success) setCategories(res.data);
     }).catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    if (activeSection === 'verification') fetchMyVerification();
+  }, [activeSection]);
 
   async function fetchBusinesses() {
     try {
       const res = await api.get('/businesses');
       if (res.success) setMyBusinesses(res.data.filter((b) => b.owner_id === user.id));
     } catch (err) { console.error('fetch businesses error:', err); }
+  }
+
+  async function fetchMyVerification() {
+    try {
+      const res = await api.get('/verification/my');
+      if (res.success && res.data) {
+        setMyVerification(res.data);
+        setVForm({
+          idType: res.data.id_type || '',
+          idNumber: res.data.id_number || '',
+          notes: res.data.notes || '',
+        });
+        setVDocs(Array.isArray(res.data.documents) ? res.data.documents : []);
+      } else {
+        setMyVerification(null);
+      }
+    } catch (err) { console.error('fetch verification error:', err); }
+  }
+
+  async function handleKycUpload(files) {
+    if (!files.length) return;
+    setVBusy(true);
+    setVErr('');
+    try {
+      const fd = new FormData();
+      for (const f of files) fd.append('files', f);
+      const res = await api.post('/upload', fd);
+      if (res.success) {
+        const uploaded = Array.isArray(res.data) ? res.data : [res.data];
+        const docs = uploaded.map((u) => ({
+          type: 'supporting_document',
+          url: u.url || u.file_id,
+          name: u.name || u.original_name || 'Document',
+        }));
+        setVDocs((prev) => [...prev, ...docs]);
+        toast?.success?.(`Uploaded ${docs.length} document${docs.length === 1 ? '' : 's'}.`);
+      } else {
+        setVErr(res.error?.message || 'Upload failed.');
+      }
+    } catch (err) {
+      setVErr(err.response?.data?.error || 'Upload failed.');
+    } finally {
+      setVBusy(false);
+    }
+  }
+
+  function removeVDoc(index) {
+    setVDocs((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function submitVerification(e) {
+    e.preventDefault();
+    setVErr('');
+    setVMsg('');
+    if (!vForm.idType) { setVErr('Select your ID type.'); return; }
+    if (vForm.idNumber.trim().length < 3) { setVErr('Enter a valid ID number.'); return; }
+    if (vDocs.length === 0) { setVErr('Upload at least one document (e.g. your NIN slip).'); return; }
+
+    setVBusy(true);
+    try {
+      const res = await api.post('/verification/submit', {
+        business_name: myBusinesses[0]?.name,
+        id_type: vForm.idType,
+        id_number: vForm.idNumber.trim(),
+        notes: vForm.notes || undefined,
+        documents: vDocs,
+      });
+      if (res.success) {
+        setMyVerification(res.data);
+        setVMsg('Verification submitted! Our team reviews applications within 1–2 business days.');
+        toast?.success?.('Verification submitted successfully.');
+      } else {
+        setVErr(res.error?.message || res.error || 'Could not submit verification.');
+      }
+    } catch (err) {
+      setVErr(err.response?.data?.error || 'Could not submit verification.');
+    } finally {
+      setVBusy(false);
+    }
   }
 
   function toggleGroup(type) {
@@ -1093,6 +1185,121 @@ function VendorDashboard() {
                   </div>
                   {subMsg && <p style={{ fontSize: '0.85rem', color: subMsg.includes('failed') ? 'var(--color-danger)' : '#16a34a', marginBottom: 8 }}>{subMsg}</p>}
                   <button type="submit" style={btnPrimary}>Subscribe</button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {activeSection === 'verification' && (
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 16px' }}>Business Verification</h2>
+
+              {myVerification && (
+                <div style={{ ...cardStyle, marginBottom: 20, borderColor: myVerification.status === 'approved' ? '#16a34a' : myVerification.status === 'rejected' ? '#dc2626' : '#f59e0b' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ShieldCheck size={18} color={myVerification.status === 'approved' ? '#16a34a' : myVerification.status === 'rejected' ? '#dc2626' : '#f59e0b'} />
+                      Current Status
+                    </h3>
+                    <Badge label={myVerification.status} color={myVerification.status === 'approved' ? '#16a34a' : myVerification.status === 'rejected' ? '#dc2626' : '#f59e0b'} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, fontSize: '0.88rem', marginTop: 12 }}>
+                    <p><strong>ID Type:</strong> {myVerification.id_type ? titleCase(myVerification.id_type) : '—'}</p>
+                    <p><strong>ID Number:</strong> {myVerification.id_number || '—'}</p>
+                    <p><strong>Submitted:</strong> {myVerification.created_at ? new Date(myVerification.created_at).toLocaleDateString() : '—'}</p>
+                    {myVerification.reviewed_at && <p><strong>Reviewed:</strong> {new Date(myVerification.reviewed_at).toLocaleDateString()}</p>}
+                  </div>
+                  {myVerification.status === 'pending' && (
+                    <p style={{ fontSize: '0.85rem', color: '#f59e0b', marginTop: 8 }}>Your verification is being reviewed. Our team typically responds within 1–2 business days.</p>
+                  )}
+                  {myVerification.status === 'rejected' && myVerification.rejection_reason && (
+                    <p style={{ fontSize: '0.85rem', color: '#dc2626', marginTop: 8 }}><strong>Reason:</strong> {myVerification.rejection_reason}</p>
+                  )}
+                  {myVerification.status === 'approved' && (
+                    <p style={{ fontSize: '0.85rem', color: '#16a34a', marginTop: 8 }}>Your business is verified. Your listings now carry the verified badge.</p>
+                  )}
+                </div>
+              )}
+
+              {myVerification?.status !== 'approved' && (
+                <form onSubmit={submitVerification} style={cardStyle}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 4px' }}>{myVerification?.status === 'rejected' ? 'Resubmit your details' : 'Submit your business details for verification'}</h3>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 16px' }}>
+                    Upload a valid government ID (e.g. your NIN slip) and we will manually verify your business. This adds the verified badge to your listings.
+                  </p>
+
+                  {vErr && <p style={{ fontSize: '0.85rem', color: 'var(--color-danger)', marginBottom: 12 }}>{vErr}</p>}
+                  {vMsg && <p style={{ fontSize: '0.85rem', color: '#16a34a', marginBottom: 12 }}>{vMsg}</p>}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                    <div>
+                      <label style={labelStyle} htmlFor="vid-type">ID Type</label>
+                      <select
+                        id="vid-type"
+                        style={inputStyle}
+                        value={vForm.idType}
+                        onChange={(e) => setVForm((prev) => ({ ...prev, idType: e.target.value }))}
+                      >
+                        <option value="">Select ID type...</option>
+                        <option value="nin">NIN (National ID)</option>
+                        <option value="driver_license">Driver's License</option>
+                        <option value="international_passport">International Passport</option>
+                        <option value="voter_card">Voter's Card</option>
+                        <option value="cac_certificate">CAC Certificate</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle} htmlFor="vid-number">ID Number</label>
+                      <input
+                        id="vid-number"
+                        style={inputStyle}
+                        placeholder="e.g. 12345678901"
+                        value={vForm.idNumber}
+                        onChange={(e) => setVForm((prev) => ({ ...prev, idNumber: e.target.value }))}
+                        maxLength={50}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Supporting Documents</label>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                      {vDocs.map((d, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px',
+                          background: 'var(--color-bg)', border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-pill)', fontSize: '0.78rem',
+                        }}>
+                          <FileText size={14} color="var(--color-primary)" />
+                          <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name || 'Document'}</span>
+                          <button type="button" onClick={() => removeVDoc(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', display: 'flex', padding: 0 }}><X size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <input ref={vDocInputRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { handleKycUpload(e.target.files); e.target.value = ''; }} />
+                    <button type="button" onClick={() => vDocInputRef.current?.click()} disabled={vBusy} style={{ ...btnOutline, fontSize: '0.8rem' }}>
+                      {vBusy ? <Loader size={15} className="spin" /> : <Upload size={15} />}
+                      Upload NIN slip / documents
+                    </button>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Images or PDF, up to 10 files.</p>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle} htmlFor="vid-notes">Notes (optional)</label>
+                    <textarea
+                      id="vid-notes"
+                      style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }}
+                      placeholder="Anything the review team should know about your business..."
+                      value={vForm.notes}
+                      onChange={(e) => setVForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      maxLength={2000}
+                    />
+                  </div>
+
+                  <button type="submit" style={btnPrimary} disabled={vBusy}>
+                    {vBusy ? <Loader size={15} className="spin" /> : <ShieldCheck size={15} />}
+                    {myVerification?.status === 'rejected' ? 'Resubmit for Review' : 'Submit for Verification'}
+                  </button>
                 </form>
               )}
             </div>

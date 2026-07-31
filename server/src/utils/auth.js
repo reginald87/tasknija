@@ -48,6 +48,11 @@ export function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+// Email-verification OTP helpers (6-digit code, stored hashed).
+export function generateOtpCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
 /**
  * Load a user (with profile fields) by id. Returns the profile row.
  */

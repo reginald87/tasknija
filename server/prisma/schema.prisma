@@ -67,6 +67,7 @@ model Profile {
   workUpdates        WorkUpdate[]
   vendorSubscriptions VendorSubscription[]
   passwordResets      PasswordReset[]
+  emailOtps           EmailOtp[]
 
   @@index([role])
   @@index([email])
@@ -399,6 +400,10 @@ model VendorVerification {
   user_id      String
   business_name String?
   status       String   @default("pending") // pending | approved | rejected
+  id_type      String?  // nin | driver_license | international_passport | voter_card | cac_certificate
+  id_number    String?
+  documents    String   @default("[]") // JSON array [{ type, url, name }]
+  notes        String?
   reviewed_by  String?
   reviewed_at  DateTime?
   rejection_reason String?
@@ -409,6 +414,21 @@ model VendorVerification {
 
   @@index([user_id])
   @@index([status])
+}
+
+model EmailOtp {
+  id         String   @id @default(uuid())
+  user_id    String
+  purpose    String   // email_verification
+  code_hash  String
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime @default(now())
+
+  user Profile @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, purpose])
+  @@index([code_hash])
 }
 
 model WithdrawalRequest {

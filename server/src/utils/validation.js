@@ -41,3 +41,24 @@ export const refreshTokenSchema = z.object({
 export const googleSchema = z.object({
   idToken: z.string().min(1, 'Google ID token is required.')
 });
+
+export const verifyEmailSchema = z.object({
+  email: z.string().email('Invalid email format.'),
+  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit verification code.')
+});
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email('Invalid email format.')
+});
+
+export const submitVerificationSchema = z.object({
+  business_name: z.string().min(2, 'Business name must be at least 2 characters.').max(200).optional(),
+  id_type: z.enum(['nin', 'driver_license', 'international_passport', 'voter_card', 'cac_certificate']),
+  id_number: z.string().min(3, 'Enter a valid ID number.').max(50),
+  notes: z.string().max(2000).optional(),
+  documents: z.array(z.object({
+    type: z.string().min(1),
+    url: z.string().min(1),
+    name: z.string().optional(),
+  })).min(1, 'Upload at least one document.')
+});

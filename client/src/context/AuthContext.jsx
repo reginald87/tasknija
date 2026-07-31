@@ -54,9 +54,9 @@ export function AuthProvider({ children }) {
         const message = res?.error?.message || 'Registration failed.';
         return { data: null, error: { message } };
       }
-      const { accessToken, refreshToken, user, profile } = res.data;
-      await syncFromLogin({ accessToken, refreshToken, user, profile });
-      return { data: { user, session: true }, error: null };
+      // Registration now requires email verification before the account is
+      // usable, so no tokens are issued here.
+      return { data: { email, devOtp: res.devOtp }, error: null };
     } catch (err) {
       return { data: null, error: { message: err?.message || 'Registration failed.' } };
     }
@@ -74,7 +74,36 @@ export function AuthProvider({ children }) {
       return { data: { session: { access_token: accessToken, refresh_token: refreshToken }, user, profile }, error: null };
     } catch (err) {
       const message = err?.status === 401 ? 'Invalid email or password.' : (err?.message || 'Sign in failed.');
-      return { data: null, error: { message } };
+      return { data: null, error: { message, code: err?.code, details: err?.details } };
+    }
+  }
+
+  // Verify a 6-digit email code; on success the account is activated and the
+  // user is signed in directly.
+  async function verifyEmailAndSignIn(email, code) {
+    try {
+      const res = await api.post('/auth/verify-email', { email, code });
+      if (!res?.success) {
+        const message = res?.error?.message || 'Verification failed.';
+        return { data: null, error: { message } };
+      }
+      const { accessToken, refreshToken, user, profile } = res.data;
+      await syncFromLogin({ accessToken, refreshToken, user, profile });
+      return { data: { user, profile }, error: null };
+    } catch (err) {
+      return { data: null, error: { message: err?.message || 'Verification failed.', code: err?.code } };
+    }
+  }
+
+  async function resendVerificationEmail(email) {
+    try {
+      const res = await api.post('/auth/resend-verification', { email });
+      if (!res?.success) {
+        return { data: null, error: { message: res?.error?.message || 'Could not resend the code.' } };
+      }
+      return { data: { devOtp: res.devOtp }, error: null };
+    } catch (err) {
+      return { data: null, error: { message: err?.message || 'Could not resend the code.' } };
     }
   }
 
@@ -115,7 +144,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithGoogle, verifyEmailAndSignIn, resendVerificationEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );

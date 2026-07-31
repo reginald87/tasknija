@@ -13,7 +13,7 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import {
   LayoutDashboard, FolderTree, Globe, Users, Store,
   TrendingUp, Star, ChevronRight, Wallet, Scale, FileText,
-  CheckCircle, XCircle, AlertTriangle, X, CreditCard, Settings, ArrowUpFromLine,
+  CheckCircle, XCircle, AlertTriangle, X, CreditCard, Settings, ArrowUpFromLine, ShieldCheck,
 } from 'lucide-react';
 
 const SIDEBAR_ITEMS = [
@@ -22,6 +22,7 @@ const SIDEBAR_ITEMS = [
   { key: 'categories', label: 'Categories', icon: FolderTree },
   { key: 'countries', label: 'Countries', icon: Globe },
   { key: 'users', label: 'Users', icon: Users },
+  { key: 'verifications', label: 'Verifications', icon: ShieldCheck },
   { key: 'reviews', label: 'Reviews', icon: Star },
   { key: 'wallets', label: 'Wallets', icon: Wallet },
   { key: 'transactions', label: 'Transactions', icon: FileText },
@@ -178,6 +179,12 @@ function AdminDashboard() {
   /* Reviews */
   const [reviews, setReviews] = useState([]);
 
+  /* Vendor verifications */
+  const [verifications, setVerifications] = useState([]);
+  const [verifFilter, setVerifFilter] = useState('pending');
+  const [verifReason, setVerifReason] = useState({});
+  const [verifBusy, setVerifBusy] = useState(null);
+
   /* Wallets */
   const [wallets, setWallets] = useState([]);
   const [walletTx, setWalletTx] = useState([]);
@@ -247,6 +254,7 @@ function AdminDashboard() {
 
   useEffect(() => { if (profile?.role === 'admin' && activeSection === 'businesses') fetchBusinesses(); }, [activeSection, bizFilter]);
   useEffect(() => { if (profile?.role === 'admin' && activeSection === 'reviews') fetchReviews(); }, [activeSection]);
+  useEffect(() => { if (profile?.role === 'admin' && activeSection === 'verifications') fetchVerifications(); }, [activeSection, verifFilter]);
   useEffect(() => { if (profile?.role === 'admin' && activeSection === 'wallets') { fetchWallets(); fetchWalletTx(); } }, [activeSection]);
   useEffect(() => { if (profile?.role === 'admin' && activeSection === 'transactions') fetchTransactions(); }, [activeSection, txFilter]);
   useEffect(() => { if (profile?.role === 'admin' && activeSection === 'disputes') fetchDisputes(); }, [activeSection, disputeFilter]);
@@ -277,6 +285,27 @@ function AdminDashboard() {
   async function fetchUsers() { try { const data = await api.get('/admin/users'); if (data.success) setUsers(data.data); } catch {} }
   async function fetchBusinesses() { try { const data = await api.get(`/admin/businesses${bizFilter ? `?status=${bizFilter}` : ''}`); if (data.success) setBusinesses(data.data); } catch {} }
   async function fetchReviews() { try { const data = await api.get('/admin/reviews'); if (data.success) setReviews(data.data); } catch {} }
+  async function fetchVerifications() { try { const data = await api.get(`/admin/vendor-verifications?status=${verifFilter}`); if (data.success) setVerifications(data.data || []); } catch {} }
+  async function handleVerifApprove(id) {
+    setVerifBusy(id);
+    try {
+      const res = await api.patch(`/admin/vendor-verifications/${id}/approve`);
+      if (res.success) { toast.success('Verification approved. Businesses marked verified.'); fetchVerifications(); }
+      else toast.error(res.error?.message || 'Could not approve verification');
+    } catch (err) { toast.error(err.response?.data?.error || 'Could not approve verification'); }
+    finally { setVerifBusy(null); }
+  }
+  async function handleVerifReject(id) {
+    const reason = (verifReason[id] || '').trim();
+    if (!reason) { toast.error('Enter a rejection reason first.'); return; }
+    setVerifBusy(id);
+    try {
+      const res = await api.patch(`/admin/vendor-verifications/${id}/reject`, { reason });
+      if (res.success) { toast.success('Verification rejected.'); fetchVerifications(); }
+      else toast.error(res.error?.message || 'Could not reject verification');
+    } catch (err) { toast.error(err.response?.data?.error || 'Could not reject verification'); }
+    finally { setVerifBusy(null); }
+  }
   async function fetchWallets() { try { const data = await api.get('/admin/wallets'); if (data.success) setWallets(data.data); } catch {} }
   async function fetchWalletTx() { try { const data = await api.get('/admin/wallet-transactions'); if (data.success) setWalletTx(data.data); } catch {} }
   async function fetchTransactions() { try { const data = await api.get(`/admin/transactions${txFilter ? `?status=${txFilter}` : ''}`); if (data.success) setTransactions(data.data); } catch {} }
@@ -727,6 +756,131 @@ function AdminDashboard() {
                 </tr>
               ))}
             </FormTable>
+          </>
+        )}
+
+        {/* ===== VERIFICATIONS ===== */}
+        {activeSection === 'verifications' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+              <h2 style={{ fontSize: '1.3rem', margin: 0 }}>Vendor Verifications</h2>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['pending', 'approved', 'rejected', 'all'].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setVerifFilter(s)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 'var(--radius-pill)', cursor: 'pointer',
+                      border: verifFilter === s ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      background: verifFilter === s ? 'var(--color-primary)' : 'var(--color-surface)',
+                      color: verifFilter === s ? '#fff' : 'inherit',
+                      fontSize: '0.78rem', fontWeight: 600, textTransform: 'capitalize',
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {verifications.length === 0 ? (
+              <EmptyState icon={<ShieldCheck size={32} />} title="No verifications" message={`No ${verifFilter === 'all' ? '' : verifFilter + ' '}verification applications found.`} />
+            ) : (
+              verifications.map((v) => (
+                <div key={v.id} style={{
+                  background: 'var(--color-surface)', borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border)', padding: '18px 20px', marginBottom: 16,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: '0.95rem' }}>{v.user?.full_name || 'Unknown vendor'}</strong>
+                        <Badge label={v.status} color={v.status === 'approved' ? '#16a34a' : v.status === 'rejected' ? '#dc2626' : '#f59e0b'} />
+                      </div>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
+                        {v.user?.email || '—'} · Submitted {v.created_at ? new Date(v.created_at).toLocaleString() : '—'}
+                      </p>
+                    </div>
+                    {v.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => handleVerifApprove(v.id)}
+                          disabled={verifBusy === v.id}
+                          style={{
+                            padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none',
+                            borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                          }}
+                        >
+                          {verifBusy === v.id ? '...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => handleVerifReject(v.id)}
+                          disabled={verifBusy === v.id}
+                          style={{
+                            padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none',
+                            borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                          }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 12, fontSize: '0.85rem' }}>
+                    <p style={{ margin: 0 }}><strong>Business:</strong> {v.business_name || '—'}</p>
+                    <p style={{ margin: 0 }}><strong>ID Type:</strong> {v.id_type ? v.id_type.replace(/_/g, ' ') : '—'}</p>
+                    <p style={{ margin: 0 }}><strong>ID Number:</strong> {v.id_number || '—'}</p>
+                  </div>
+
+                  {(v.documents || []).length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <strong style={{ fontSize: '0.82rem' }}>Documents ({v.documents.length})</strong>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                        {v.documents.map((d, i) => (
+                          <a
+                            key={i}
+                            href={d.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+                              background: 'var(--color-bg)', border: '1px solid var(--color-border)',
+                              borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', color: 'var(--color-primary)',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <FileText size={13} />
+                            {d.name || d.type || 'View document'}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {v.notes && <p style={{ fontSize: '0.82rem', margin: '12px 0 0', fontStyle: 'italic', color: 'var(--color-text-muted)' }}>"{v.notes}"</p>}
+
+                  {v.status === 'rejected' && v.rejection_reason && (
+                    <p style={{ fontSize: '0.82rem', color: '#dc2626', margin: '12px 0 0' }}><strong>Rejection reason:</strong> {v.rejection_reason}</p>
+                  )}
+
+                  {v.status === 'pending' && (
+                    <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        placeholder="Rejection reason (required to reject)"
+                        value={verifReason[v.id] || ''}
+                        onChange={(e) => setVerifReason((prev) => ({ ...prev, [v.id]: e.target.value }))}
+                        style={{
+                          flex: 1, maxWidth: 380, padding: '8px 12px', border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', background: 'var(--color-bg)',
+                          color: 'var(--color-text)', outline: 'none',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </>
         )}
 

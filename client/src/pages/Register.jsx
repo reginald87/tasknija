@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Alert from '../components/common/Alert';
 import Logo from '../components/common/Logo';
-import { Mail, Lock, Eye, EyeOff, User, UserPlus, CheckCircle2, Home, Building2, Tag, Ruler } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, UserPlus, Home, Building2, Tag, Ruler } from 'lucide-react';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -52,7 +52,6 @@ function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
-  const [registeredEmail, setRegisteredEmail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(false);
   const { signUp, signInWithGoogle } = useAuth();
@@ -100,17 +99,8 @@ function Register() {
     });
     setLoading(false);
     if (err) { setError(err.message); toast.error(err.message); return; }
-    if (data?.user && !data.session) {
-      toast.success('Account created! Check your email.');
-      setRegisteredEmail(data?.user?.email || email);
-    } else {
-      toast.success('Account created!');
-      if (role === 'vendor' || role === 'property_owner') {
-        navigate('/vendor-dashboard');
-      } else {
-        navigate('/');
-      }
-    }
+    toast.success('Account created! Enter the 6-digit code sent to your email.');
+    navigate(`/verify-email?email=${encodeURIComponent(email)}`);
   }
 
   async function handleGoogleSignIn() {
@@ -119,38 +109,6 @@ function Register() {
     const { error: err } = await signInWithGoogle();
     setSocialLoading(false);
     if (err) { setError(err.message); toast.error(err.message); }
-  }
-
-  if (registeredEmail) {
-    return (
-      <div className="auth-page-wrapper">
-        <div className="auth-brand-panel">
-          <div className="auth-brand-inner">
-            <Logo size={44} variant="light" link={false} />
-            <div className="auth-brand-headline">
-              <h1>You're almost there!</h1>
-              <p>Check your inbox to verify your email address and complete sign-up.</p>
-            </div>
-          </div>
-          <div className="auth-brand-decoration"></div>
-        </div>
-        <div className="auth-form-panel">
-          <div className="auth-form-card auth-success-card verify-email-prompt">
-            <div className="auth-success-icon">
-              <CheckCircle2 size={52} color="var(--color-primary)" />
-            </div>
-            <h2>{'\u{1F4EC}'} Check your email</h2>
-            <p className="auth-success-msg">
-              We've sent a verification link to <strong>{registeredEmail}</strong>.<br />
-              Click the link to activate your account. Didn't get it? Check your spam folder.
-            </p>
-            <Link to="/login" className="auth-submit-btn">
-              Go to Sign In
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (

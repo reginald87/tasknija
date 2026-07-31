@@ -42,7 +42,18 @@ function Login() {
 
     setLoading(true);
     const { data, error: err } = await signIn(email, password);
-    if (err) { setLoading(false); const msg = err.message; setError(msg); toast.error(msg); return; }
+    if (err) {
+      setLoading(false);
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        toast.info('Please verify your email before signing in.');
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      const msg = err.message;
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
 
     const role = data?.profile?.role;
     setLoading(false);

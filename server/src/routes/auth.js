@@ -9,6 +9,8 @@ import {
   resetPassword,
   refreshToken,
   googleAuth,
+  verifyEmail,
+  resendVerification,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -19,6 +21,8 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   googleSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
 } from '../utils/validation.js';
 
 const router = Router();
@@ -65,6 +69,8 @@ const passwordResetLimiter = rateLimit({
 
 router.post('/register', registerLimiter, validate(registerSchema), register);
 router.post('/login', loginLimiter, validate(loginSchema), login);
+router.post('/verify-email', registerLimiter, validate(verifyEmailSchema), verifyEmail);
+router.post('/resend-verification', registerLimiter, validate(resendVerificationSchema), resendVerification);
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getMe);
 router.post(

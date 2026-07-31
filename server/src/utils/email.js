@@ -50,6 +50,11 @@ async function send({ to, subject, html }) {
   }
 }
 
+/** True when an SMTP transporter is configured (i.e. email actually goes out). */
+export function canSendEmail() {
+  return Boolean(getTransporter());
+}
+
 /**
  * Generic email send used by the central notifications dispatcher.
  * Accepts plain text body. Logs to console in dev mode if SMTP is not configured.
@@ -145,6 +150,44 @@ export async function sendVerificationEmail({ email, fullName }) {
 <p>Thanks for creating your account. Your email <strong>${email}</strong> is on file and you're ready to go.</p>
 <p>You can now browse verified service providers, message vendors, and manage your bookings and wallet.</p>
 <p>If this wasn't you, you can ignore this email — no further action is needed.</p>
+<p>Thanks,<br/>TaskNija Team</p>`,
+  });
+}
+
+export async function sendEmailOtp({ email, fullName, code }) {
+  await send({
+    to: email,
+    subject: 'Your TaskNija verification code',
+    html: `<h2>Verify your email</h2>
+<p>Hi ${fullName || ''},</p>
+<p>Use the code below to verify your email address:</p>
+<p style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;padding:12px 24px;font-size:28px;font-weight:700;letter-spacing:8px;color:#166534;border-radius:8px;margin:12px 0">${code}</p>
+<p>This code expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
+<p>Thanks,<br/>TaskNija Team</p>`,
+  });
+}
+
+export async function sendVerificationApproved({ email, name }) {
+  await send({
+    to: email,
+    subject: 'Your TaskNija verification was approved',
+    html: `<h2>Verification Approved ✅</h2>
+<p>Hi ${name || ''},</p>
+<p>Great news — your business has been verified on TaskNija.</p>
+<p>Your listings now carry the verified badge, which tells customers they're dealing with a real, vetted business.</p>
+<p>Thanks,<br/>TaskNija Team</p>`,
+  });
+}
+
+export async function sendVerificationRejected({ email, name, reason }) {
+  await send({
+    to: email,
+    subject: 'Your TaskNija verification needs attention',
+    html: `<h2>Verification Update</h2>
+<p>Hi ${name || ''},</p>
+<p>We couldn't verify your business yet.</p>
+${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+<p>Please review the details you submitted, correct any issues, and resubmit. You can also reach our support team if you have questions.</p>
 <p>Thanks,<br/>TaskNija Team</p>`,
   });
 }

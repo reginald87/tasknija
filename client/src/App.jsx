@@ -11,6 +11,7 @@ const SearchResults = lazy(() => import('./pages/SearchResults'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
@@ -69,6 +70,7 @@ function App() {
             <Route path="/category/:slug" element={<CategoryPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />

@@ -7,6 +7,8 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   googleSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
 } from '../utils/validation.js';
 import {
   signAccessToken,
@@ -17,16 +19,23 @@ import {
   comparePassword,
   hashPassword,
   generateResetToken,
+  generateOtpCode,
   hashToken,
   findOrCreateOAuthUser,
   verifyGoogleIdToken,
 } from '../utils/auth.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../utils/email.js';
+import { sendPasswordResetEmail, sendEmailOtp } from '../utils/email.js';
 import { logger } from '../middleware/logger.js';
 import { getVendorFeatures } from '../utils/subscriptionData.js';
 
 const PASSWORD_RESET_REDIRECT =
   process.env.PASSWORD_RESET_REDIRECT_URL || 'http://localhost:5173/reset-password';
+
+const EMAIL_OTP_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+// Dev/test convenience: expose the code in API responses whenever we are not
+// in production so local flows can complete verification without an inbox.
+const IS_DEV = process.env.NODE_ENV !== 'production';
 
 function genericRegisterMessage() {
   return {
@@ -34,6 +43,27 @@ function genericRegisterMessage() {
     message:
       'If your email is new, please check your inbox to verify your account.'
   };
+}
+
+// Issue a fresh 6-digit email verification code for a profile, invalidating
+// any previously-issued unused codes. Returns the plaintext code (only used
+// for the email body / dev logging — never stored).
+async function issueEmailOtp(profileId) {
+  const code = generateOtpCode();
+  const codeHash = hashToken(code);
+  await prisma.emailOtp.updateMany({
+    where: { user_id: profileId, purpose: 'email_verification', used_at: null },
+    data: { used_at: new Date() },
+  });
+  await prisma.emailOtp.create({
+    data: {
+      user_id: profileId,
+      purpose: 'email_verification',
+      code_hash: codeHash,
+      expires_at: new Date(Date.now() + EMAIL_OTP_TTL_MS),
+    },
+  });
+  return code;
 }
 
 export async function register(req, res, next) {
@@ -69,9 +99,12 @@ export async function register(req, res, next) {
       isDirectFromOwner
     });
 
-    // Send a welcome/verification email (no-op if SMTP not configured).
+    // Send a 6-digit verification code (no-op/console if SMTP not configured).
+    let devOtp;
     try {
-      await sendVerificationEmail({ email, fullName });
+      const code = await issueEmailOtp(profile.id);
+      await sendEmailOtp({ email, fullName, code });
+      if (IS_DEV) devOtp = code;
     } catch (mailErr) {
       req?.log?.warn?.({ err: mailErr }, 'verification email failed');
     }
@@ -87,20 +120,10 @@ export async function register(req, res, next) {
       }
     }
 
-    // Issue tokens immediately so the client can use the account.
-    const accessToken = signAccessToken(profile);
-    const refreshToken = signRefreshToken(profile);
-
-    return res.status(200).json({
-      success: true,
-      message: genericRegisterMessage().message,
-      data: {
-        accessToken,
-        refreshToken,
-        user: { id: profile.id, email: profile.email, role: profile.role },
-        profile
-      }
-    });
+    // Account is not usable until the email is verified (login is blocked).
+    const body = genericRegisterMessage();
+    if (devOtp) body.devOtp = devOtp;
+    return res.status(200).json(body);
   } catch (err) {
     next(err);
   }
@@ -137,6 +160,13 @@ export async function login(req, res, next) {
       return next(new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.'));
     }
 
+    // Email must be verified before the account can sign in.
+    if (!profile.is_verified) {
+      return next(
+        new AppError(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email before signing in.', { email: profile.email })
+      );
+    }
+
     const accessToken = signAccessToken(profile);
     const refreshToken = signRefreshToken(profile);
 
@@ -149,6 +179,113 @@ export async function login(req, res, next) {
         profile
       }
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function verifyEmail(req, res, next) {
+  try {
+    const parsed = verifyEmailSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { email, code } = parsed.data;
+
+    const profile = await prisma.profile.findUnique({ where: { email } });
+    if (!profile) return next(new AppError(400, 'INVALID_OTP', 'Invalid or expired verification code.'));
+
+    // Already verified (e.g. Google account) — just sign them in.
+    if (profile.is_verified) {
+      return res.json({
+        success: true,
+        data: {
+          accessToken: signAccessToken(profile),
+          refreshToken: signRefreshToken(profile),
+          user: { id: profile.id, email: profile.email },
+          profile
+        }
+      });
+    }
+
+    const codeHash = hashToken(code);
+    const otp = await prisma.emailOtp.findFirst({
+      where: {
+        user_id: profile.id,
+        purpose: 'email_verification',
+        code_hash: codeHash,
+        used_at: null,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    if (!otp) return next(new AppError(400, 'INVALID_OTP', 'Invalid or expired verification code.'));
+
+    await prisma.$transaction([
+      prisma.emailOtp.update({ where: { id: otp.id }, data: { used_at: new Date() } }),
+      prisma.profile.update({ where: { id: profile.id }, data: { is_verified: true } }),
+    ]);
+
+    const verifiedProfile = { ...profile, is_verified: true };
+    return res.json({
+      success: true,
+      data: {
+        accessToken: signAccessToken(verifiedProfile),
+        refreshToken: signRefreshToken(verifiedProfile),
+        user: { id: profile.id, email: profile.email },
+        profile: verifiedProfile
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resendVerification(req, res, next) {
+  try {
+    const parsed = resendVerificationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { email } = parsed.data;
+
+    const profile = await prisma.profile.findUnique({ where: { email } });
+
+    let devOtp;
+    if (profile && !profile.is_verified) {
+      try {
+        const code = await issueEmailOtp(profile.id);
+        await sendEmailOtp({ email, fullName: profile.full_name, code });
+        if (IS_DEV) devOtp = code;
+      } catch (mailErr) {
+        req?.log?.warn?.({ err: mailErr }, 'resend verification email failed');
+      }
+    }
+
+    // Always return the same generic response (no enumeration).
+    const body = {
+      success: true,
+      message: 'If your email is new, a verification code has been sent to your inbox.'
+    };
+    // Dev/test only: expose the code so local flows can complete verification.
+    if (devOtp) body.devOtp = devOtp;
+    return res.json(body);
   } catch (err) {
     next(err);
   }
