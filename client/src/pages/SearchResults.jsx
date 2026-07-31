@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api.js';
+import { useLocationCtx } from '../context/LocationContext';
 import Loading from '../components/common/Loading.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import ErrorState from '../components/common/ErrorState.jsx';
@@ -20,14 +21,21 @@ const SORT_OPTIONS = [
 
 function SearchResults() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { selectedCity, setCity: setGlobalCity } = useLocationCtx();
 
   // Filters (initialized from URL so deep links work)
   const initialQ = searchParams.get('q') || '';
   const initialCategory = searchParams.get('category') || '';
-  const initialCity = searchParams.get('city') || '';
   const [query, setQuery] = useState(initialQ);
   const [category, setCategory] = useState(initialCategory);
-  const [city, setCity] = useState(initialCity);
+
+  // Adopt the deep-link city into the shared location context so the navbar
+  // selector and search results stay in sync.
+  useEffect(() => {
+    const urlCity = searchParams.get('city');
+    if (urlCity && selectedCity === 'All Nigeria') setGlobalCity(urlCity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'recency');
   const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get('verified') === 'true');
   const [mapView, setMapView] = useState(false);
@@ -74,7 +82,7 @@ function SearchResults() {
     const params = new URLSearchParams();
     if (debouncedQuery) params.set('q', debouncedQuery);
     if (category) params.set('category', category);
-    if (city) params.set('city', city);
+    if (selectedCity && selectedCity !== 'All Nigeria') params.set('city', selectedCity);
     if (sortBy) params.set('sort', sortBy);
     if (verifiedOnly) params.set('verified', 'true');
     params.set('page', String(page));
@@ -102,7 +110,7 @@ function SearchResults() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedQuery, category, city, sortBy, page]);
+  }, [debouncedQuery, category, selectedCity, sortBy, page]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / LIMIT)),
@@ -111,7 +119,7 @@ function SearchResults() {
 
   const onQueryChange = (e) => { setQuery(e.target.value); setPage(1); };
   const onCategoryChange = (e) => { setCategory(e.target.value); setPage(1); };
-  const onCityChange = (e) => { setCity(e.target.value); setPage(1); };
+  const onCityChange = (e) => { setGlobalCity(e.target.value || 'All Nigeria'); setPage(1); };
   const onSortChange = (e) => { setSortBy(e.target.value); setPage(1); };
   const onVerifiedChange = (e) => { setVerifiedOnly(e.target.checked); setPage(1); };
 
@@ -134,7 +142,7 @@ function SearchResults() {
           ))}
         </select>
 
-        <select value={city} onChange={onCityChange} aria-label="City" style={{ padding: '8px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}>
+        <select value={selectedCity === 'All Nigeria' ? '' : selectedCity} onChange={onCityChange} aria-label="City" style={{ padding: '8px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}>
           <option value="">All cities</option>
           {cities.map((c) => (
             <option key={c.id || c.name} value={c.name}>{c.name}</option>

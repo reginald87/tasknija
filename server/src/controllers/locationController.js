@@ -76,10 +76,10 @@ export async function getCities(req, res, next) {
     if (refCities.length > 0) {
       return res.json({ success: true, data: refCities });
     }
-    // Fallback: map a synthetic state id (st-<slug>) to business cities.
+    // Fallback: derive cities from business records.
+    const biz = await businessLocations();
     if (stateId && stateId.startsWith('st-')) {
       const slug = stateId.slice(3);
-      const biz = await businessLocations();
       for (const [st, cities] of biz) {
         if (slugify(st) === slug) {
           const data = [...cities]
@@ -89,6 +89,16 @@ export async function getCities(req, res, next) {
           return res.json({ success: true, data });
         }
       }
+    }
+    if (!stateId && !lgaId) {
+      const all = new Set();
+      for (const cities of biz.values()) {
+        for (const c of cities) if (c) all.add(c);
+      }
+      const data = [...all]
+        .sort((a, b) => a.localeCompare(b))
+        .map((name) => ({ id: 'city-' + slugify(name), name, slug: slugify(name), state_id: null, lga_id: null }));
+      return res.json({ success: true, data });
     }
     return res.json({ success: true, data: [] });
   } catch (err) { next(err); }
