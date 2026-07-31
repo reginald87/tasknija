@@ -1,12 +1,49 @@
 import { prisma } from '../config/prisma.js';
 import { sanitizeError } from '../middleware/errorHandler.js';
 
+function slugify(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function normalizeStateName(name) {
+  return String(name || 'Nigeria').trim().replace(/\s+State$/i, '').trim();
+}
+
+// Distinct (state -> cities) present in the business table. Used as a fallback
+// when the reference State/Lga/City tables have not been seeded yet.
+async function businessLocations() {
+  const rows = await prisma.business.findMany({
+    where: { city: { not: null } },
+    select: { city: true, state: true },
+  });
+  const states = new Map(); // stateName -> Set(cityName)
+  for (const r of rows || []) {
+    if (!r.city) continue;
+    const st = normalizeStateName(r.state);
+    if (!states.has(st)) states.set(st, new Set());
+    states.get(st).add(r.city.trim());
+  }
+  return states;
+}
+
 export async function getStates(req, res, next) {
   try {
-    const data = await prisma.state.findMany({
+    const refStates = await prisma.state.findMany({
       select: { id: true, name: true, slug: true },
       orderBy: { name: 'asc' },
     });
+    if (refStates.length > 0) {
+      return res.json({ success: true, data: refStates });
+    }
+    // Fallback: derive states from business records.
+    const biz = await businessLocations();
+    const data = [...biz.keys()]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ id: 'st-' + slugify(name), name, slug: slugify(name) }));
     return res.json({ success: true, data });
   } catch (err) { next(err); }
 }
@@ -19,6 +56,8 @@ export async function getLgas(req, res, next) {
       select: { id: true, name: true, slug: true },
       orderBy: { name: 'asc' },
     });
+    // Businesses don't track LGAs; if the reference tables are empty the client
+    // falls back to free-text entry, so an empty list is the correct fallback.
     return res.json({ success: true, data });
   } catch (err) { next(err); }
 }
@@ -29,12 +68,29 @@ export async function getCities(req, res, next) {
     const where = {};
     if (stateId) where.state_id = stateId;
     if (lgaId) where.lga_id = lgaId;
-    const data = await prisma.city.findMany({
+    const refCities = await prisma.city.findMany({
       where,
       select: { id: true, name: true, slug: true, state_id: true, lga_id: true },
       orderBy: { name: 'asc' },
     });
-    return res.json({ success: true, data });
+    if (refCities.length > 0) {
+      return res.json({ success: true, data: refCities });
+    }
+    // Fallback: map a synthetic state id (st-<slug>) to business cities.
+    if (stateId && stateId.startsWith('st-')) {
+      const slug = stateId.slice(3);
+      const biz = await businessLocations();
+      for (const [st, cities] of biz) {
+        if (slugify(st) === slug) {
+          const data = [...cities]
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b))
+            .map((name) => ({ id: 'city-' + slugify(name), name, slug: slugify(name), state_id: stateId, lga_id: null }));
+          return res.json({ success: true, data });
+        }
+      }
+    }
+    return res.json({ success: true, data: [] });
   } catch (err) { next(err); }
 }
 
@@ -107,20 +163,19 @@ export async function getHierarchy(req, res, next) {
       prisma.state.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: 'asc' } }),
       prisma.lga.findMany({ select: { id: true, name: true, slug: true, state_id: true }, orderBy: { name: 'asc' } }),
       prisma.city.findMany({ select: { id: true, name: true, slug: true, state_id: true, lga_id: true }, orderBy: { name: 'asc' } }),
-      prisma.business.findMany({ where: { city: { not: null } }, select: { city: true } }),
+      prisma.business.findMany({ where: { city: { not: null } }, select: { city: true, state: true } }),
     ]);
 
     const activeCityNames = new Set(
       (businessCities || []).map(b => b.city?.toLowerCase().trim()).filter(Boolean)
     );
 
-    const activeCities = (cities || []).filter(
-      c => activeCityNames.has(c.name.toLowerCase().trim())
-    );
-
     const lgaMap = {};
+    const stateCityMap = {};
     for (const lga of (lgas || [])) {
-      const lgaCities = activeCities.filter(c => c.lga_id === lga.id);
+      const lgaCities = (cities || []).filter(
+        c => c.lga_id === lga.id && activeCityNames.has(c.name.toLowerCase().trim())
+      );
       if (lgaCities.length === 0) continue;
       if (!lgaMap[lga.state_id]) lgaMap[lga.state_id] = [];
       lgaMap[lga.state_id].push({
@@ -131,8 +186,28 @@ export async function getHierarchy(req, res, next) {
 
     const hierarchy = (states || [])
       .filter(s => lgaMap[s.id])
-      .map(s => ({ id: s.id, name: s.name, slug: s.slug, lgas: lgaMap[s.id] }));
+      .map(s => ({ id: s.id, name: s.name, slug: s.slug, cities: stateCityMap[s.id] || [], lgas: lgaMap[s.id] }));
 
-    return res.json({ success: true, data: hierarchy, empty: hierarchy.length === 0 });
+    if (hierarchy.length > 0) {
+      return res.json({ success: true, data: hierarchy, empty: false });
+    }
+
+    // Fallback: reference tables not seeded — derive states/cities from business records.
+    const biz = await businessLocations();
+    const data = [...biz.entries()]
+      .map(([stateName, citySet]) => ({
+        id: 'st-' + slugify(stateName),
+        name: stateName,
+        slug: slugify(stateName),
+        lgas: [],
+        cities: [...citySet]
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b))
+          .map(cityName => ({ id: 'city-' + slugify(cityName), name: cityName, slug: slugify(cityName) })),
+      }))
+      .filter(s => s.cities.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.json({ success: true, data, empty: data.length === 0 });
   } catch (err) { next(err); }
 }

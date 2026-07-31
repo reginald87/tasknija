@@ -153,28 +153,40 @@ function Header({ onMenuToggle }) {
                       : <ChevronRight size={14} />}
                     <span>{state.name}</span>
                   </button>
-                  {expandedStates[state.id] && state.lgas.map((lga) => (
-                    <div key={lga.id} className="location-lga-group">
-                      <button
-                        className="location-lga-btn"
-                        onClick={() => toggleLga(lga.id)}
-                      >
-                        {expandedLgas[lga.id]
-                          ? <ChevronDown size={12} />
-                          : <ChevronRight size={12} />}
-                        <span>{lga.name}</span>
-                      </button>
-                      {expandedLgas[lga.id] && lga.cities.map((city) => (
-                        <button
-                          key={city.id}
-                          className={`location-city-option ${selectedCity === city.name ? 'active' : ''}`}
-                          onClick={() => selectCity(city.name, state.name)}
-                        >
-                          {city.name}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
+                  {expandedStates[state.id] && (
+                    (state.lgas && state.lgas.length > 0)
+                      ? state.lgas.map((lga) => (
+                          <div key={lga.id} className="location-lga-group">
+                            <button
+                              className="location-lga-btn"
+                              onClick={() => toggleLga(lga.id)}
+                            >
+                              {expandedLgas[lga.id]
+                                ? <ChevronDown size={12} />
+                                : <ChevronRight size={12} />}
+                              <span>{lga.name}</span>
+                            </button>
+                            {expandedLgas[lga.id] && lga.cities.map((city) => (
+                              <button
+                                key={city.id}
+                                className={`location-city-option ${selectedCity === city.name ? 'active' : ''}`}
+                                onClick={() => selectCity(city.name, state.name)}
+                              >
+                                {city.name}
+                              </button>
+                            ))}
+                          </div>
+                        ))
+                      : (state.cities || []).map((city) => (
+                          <button
+                            key={city.id}
+                            className={`location-city-option ${selectedCity === city.name ? 'active' : ''}`}
+                            onClick={() => selectCity(city.name, state.name)}
+                          >
+                            {city.name}
+                          </button>
+                        ))
+                  )}
                 </div>
               ))}
             </div>
