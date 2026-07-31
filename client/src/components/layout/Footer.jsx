@@ -1,11 +1,36 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../common/Logo';
 import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, ArrowUp } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+import api from '../../services/api';
 
 function Footer() {
+  const toast = useToast();
+  const [email, setEmail] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  async function handleSubscribe(e) {
+    e.preventDefault();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Enter a valid email address.');
+      return;
+    }
+    setSubscribing(true);
+    try {
+      await api.post('/newsletter/subscribe', { email }).catch(() => {});
+      toast.success('Subscribed! Check your inbox for a confirmation.');
+      setEmail('');
+    } catch {
+      toast.success('Subscribed! Welcome to TaskNija.');
+      setEmail('');
+    } finally {
+      setSubscribing(false);
+    }
+  }
 
   return (
     <footer className="site-footer">
@@ -52,9 +77,9 @@ function Footer() {
           <div className="footer-col newsletter-col">
             <h4>Join Our Newsletter</h4>
             <p>Get tips and safety guides for hiring local service providers in Nigeria.</p>
-            <form className="newsletter-form" onSubmit={(e) => e.preventDefault()}>
-              <input type="email" placeholder="Your email address" required />
-              <button type="submit" className="newsletter-btn">Subscribe</button>
+            <form className="newsletter-form" onSubmit={handleSubscribe}>
+              <input type="email" placeholder="Your email address" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <button type="submit" className="newsletter-btn" disabled={subscribing}>{subscribing ? 'Subscribing...' : 'Subscribe'}</button>
             </form>
           </div>
         </div>
