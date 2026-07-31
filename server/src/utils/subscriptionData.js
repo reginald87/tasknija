@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { logger } from '../middleware/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { ipKeyGenerator } from 'express-rate-limit';
+import { notify } from './notifications.js';
 
 const SEED_PACKAGES = [
   { id: 'basic', name: 'Basic', description: 'Free starter plan', features: ['listing', 'messages'], prices: { quarterly: 0, biannually: 0, annually: 0 }, recommended: false, active: true, tier: 1 },
@@ -143,16 +144,25 @@ export async function checkExpiry() {
   // vendorId -> Set of feature keys from their active subscription package.
   const vendorFeatures = new Map();
   const activePackages = new Map();
+  const notifiedExpiringSoon = new Set();
 
   const packages = await listSubscriptionPackages().catch(() => []);
 
   for (const s of subs) {
     if (s.status === 'active' && s.expires_at) {
-      if (new Date(s.expires_at).getTime() < now) {
+      const expiresAtMs = new Date(s.expires_at).getTime();
+      if (expiresAtMs < now) {
         s.status = 'expired';
         changed = true;
         toUpdate.push(s.id);
+        notify('subscription.expired', { userId: s.vendor_id, referenceId: s.id, payload: { packageName: s.package_name, billingCycle: s.billing_cycle } }).catch(() => {});
         continue;
+      }
+      const sevenDaysMs = 7 * 86400000;
+      if (expiresAtMs - now < sevenDaysMs && !notifiedExpiringSoon.has(s.vendor_id)) {
+        notifiedExpiringSoon.add(s.vendor_id);
+        const daysLeft = Math.ceil((expiresAtMs - now) / 86400000);
+        notify('subscription.expiring_soon', { userId: s.vendor_id, referenceId: s.id, payload: { packageName: s.package_name, billingCycle: s.billing_cycle, days: daysLeft } }).catch(() => {});
       }
       // Track active sub features per vendor for featured sync.
       if (!vendorFeatures.has(s.vendor_id)) {

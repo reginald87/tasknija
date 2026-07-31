@@ -151,7 +151,7 @@ export async function subscribe(req, res, next) {
     if (!pkg) return res.status(404).json({ success: false, error: 'Package not found or inactive' });
 
     const amount = pkg.prices?.[billingCycle];
-    if (!amount || amount <= 0) {
+    if (amount === undefined || amount === null || amount < 0) {
       return res.status(400).json({ success: false, error: 'Invalid price for selected billing cycle' });
     }
 
@@ -163,6 +163,8 @@ export async function subscribe(req, res, next) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + DURATION_DAYS[billingCycle] * 86400000).toISOString();
 
+    const isFree = amount === 0;
+
     const sub = {
       id: crypto.randomUUID(),
       vendor_id: vendorId,
@@ -170,13 +172,13 @@ export async function subscribe(req, res, next) {
       package_name: pkg.name,
       billing_cycle: billingCycle,
       amount,
-      status: paymentProofUrl ? 'pending' : 'pending',
+      status: isFree ? 'active' : 'pending',
       payment_proof_url: paymentProofUrl || null,
       created_at: now.toISOString(),
       starts_at: now.toISOString(),
       expires_at: expiresAt,
       verified_by: null,
-      verified_at: null,
+      verified_at: isFree ? now.toISOString() : null,
     };
 
     await writeVendorSubs([...subs, sub]);
@@ -185,7 +187,7 @@ export async function subscribe(req, res, next) {
 
     notify(
       'subscription.created',
-      { userId: null, payload: { vendorId }, referenceId: stored.id }
+      { userId: vendorId, payload: { vendorId }, referenceId: stored.id }
     ).catch(() => {});
 
     res.status(201).json({ success: true, data: stored });
@@ -211,7 +213,7 @@ export async function initializeSubscription(req, res, next) {
     if (!pkg) throw new AppError(404, 'NOT_FOUND', 'Package not found or inactive');
 
     const amount = pkg.prices?.[billingCycle];
-    if (!amount || amount <= 0) {
+    if (amount === undefined || amount === null || amount < 0) {
       throw new AppError(400, 'INVALID_PRICE', 'Invalid price for selected billing cycle');
     }
 
@@ -220,21 +222,48 @@ export async function initializeSubscription(req, res, next) {
       throw new AppError(400, 'ALREADY_ACTIVE', 'You already have an active subscription');
     }
 
-    // Look up user email for Paystack
-    const profile = await prisma.profile.findUnique({
-      where: { id: vendorId },
-      select: { email: true },
-    });
-    const email = profile?.email || req.user.email;
-    if (!email) {
-      throw new AppError(400, 'MISSING_EMAIL', 'User email is required for payment');
-    }
-
     const now = new Date();
     const expiresAt = new Date(now.getTime() + DURATION_DAYS[billingCycle] * 86400000).toISOString();
-
     const subId = crypto.randomUUID();
     const reference = `SUB-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+    const isFree = amount === 0;
+
+    if (isFree) {
+      const sub = {
+        id: subId,
+        vendor_id: vendorId,
+        package_id: packageId,
+        package_name: pkg.name,
+        billing_cycle: billingCycle,
+        amount: 0,
+        status: 'active',
+        payment_reference: reference,
+        created_at: now.toISOString(),
+        starts_at: now.toISOString(),
+        expires_at: expiresAt,
+        verified_by: null,
+        verified_at: now.toISOString(),
+      };
+
+      await writeVendorSubs([...subs, sub]);
+      await insertVendorSub(sub).catch(() => {});
+
+      notify(
+        'subscription.created',
+        { userId: vendorId, payload: { vendorId }, referenceId: subId }
+      ).catch(() => {});
+
+      return res.json({
+        success: true,
+        data: {
+          authorization_url: null,
+          reference,
+          subscription_id: subId,
+          status: 'active',
+          message: 'Free subscription activated immediately.',
+        },
+      });
+    }
 
     const { initializeSubscriptionPayment } = await import('../utils/paystack.js');
     const response = await initializeSubscriptionPayment({
@@ -251,7 +280,6 @@ export async function initializeSubscription(req, res, next) {
       throw new AppError(502, 'PAYSTACK_INIT_FAILED', response?.message || 'Payment initialization failed');
     }
 
-    // Create pending subscription record before redirecting to Paystack
     const sub = {
       id: subId,
       vendor_id: vendorId,

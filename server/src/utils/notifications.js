@@ -17,6 +17,8 @@ const VALID_TYPES = new Set([
   'withdrawal_rejected',
   'business_verified',
   'subscription_active',
+  'subscription_expired',
+  'subscription_expiring_soon',
   'message_received',
   'generic',
 ]);
@@ -56,6 +58,18 @@ const EVENT_META = {
     title: 'Subscription created',
     body: 'Your subscription has been created and is pending verification.',
     linkFor: (ref) => ref ? `/subscriptions/${ref}` : '/dashboard',
+  },
+  'subscription.expired': {
+    type: 'subscription_expired',
+    title: 'Subscription expired',
+    body: 'Your subscription has expired. Renew now to keep your businesses visible to customers.',
+    linkFor: (ref) => ref ? `/subscriptions/${ref}` : '/vendor/dashboard',
+  },
+  'subscription.expiring_soon': {
+    type: 'subscription_expiring_soon',
+    title: 'Subscription expiring soon',
+    body: (params) => `Your subscription expires in ${params.days || 7} days. Renew now to avoid interruption.`,
+    linkFor: (ref) => ref ? `/subscriptions/${ref}` : '/vendor/dashboard',
   },
   // Generic alias — if any controller passes a plain event we don't know,
   // still record it as a 'generic' notification rather than dropping it.
