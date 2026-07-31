@@ -9,7 +9,9 @@ import { categoryIcons } from '../constants/categories.jsx';
 import {
   Search, ShieldCheck, Zap, HeartHandshake,
   MapPin, Map, ChevronRight, TrendingUp, Sparkles,
-  Building2, Key, Briefcase, Car
+  Building2, Key, Briefcase, Car,
+  MessageSquare, FileText, Wallet, BarChart3,
+  Clock, AlertTriangle, Scale, ArrowRight,
 } from 'lucide-react';
 import '../styles/redesign.css';
 
@@ -364,6 +366,46 @@ function Home() {
           </div>
         )}
       </section>
+
+       {/* Platform Features */}
+       <section style={{ padding: '60px 24px', background: 'var(--color-bg)', maxWidth: 1200, margin: '0 auto' }}>
+         <div style={{ textAlign: 'center', marginBottom: 48 }}>
+           <h2 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>
+             Everything You Need, All in One Place
+           </h2>
+           <p style={{ fontSize: '1rem', color: 'var(--color-text-muted)', maxWidth: 600, margin: '0 auto' }}>
+             From finding a plumber to verifying a vendor, TaskNija covers the full lifecycle of buying, selling, and connecting across Nigeria.
+           </p>
+         </div>
+         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
+           {[
+             { icon: Search, title: 'Smart Search', desc: 'Find services, properties, vehicles, and more with filters for location, price, and verified status.', color: '#2563eb' },
+             { icon: ShieldCheck, title: 'Verified Vendors', desc: 'Every vendor completes KYC with a government ID. Verified businesses carry the badge your customers trust.', color: '#16a34a' },
+             { icon: MessageSquare, title: 'Built-In Messaging', desc: 'Chat directly with providers, share details, and agree on terms — all inside TaskNija.', color: '#8b5cf6' },
+             { icon: FileText, title: 'Quotes & Proposals', desc: 'Request a quote from any vendor and compare proposals side by side before committing.', color: '#f59e0b' },
+             { icon: Briefcase, title: 'Work Projects', desc: 'Track every job from quote to completion with milestones, updates, and progress visibility.', color: '#0ea5e9' },
+             { icon: Scale, title: 'Dispute Resolution', desc: 'If something goes wrong, raise a dispute and our team steps in to mediate fairly.', color: '#dc2626' },
+             { icon: Wallet, title: 'Escrow Payments', desc: 'Pay securely — funds are held in escrow until you confirm the work is done to your satisfaction.', color: '#16a34a' },
+             { icon: BarChart3, title: 'Analytics & Reports', desc: 'Vendors track views, leads, and revenue. Admins monitor platform health with detailed reports.', color: '#7c3aed' },
+           ].map((f, i) => (
+             <div key={i} style={{
+               padding: 24, borderRadius: 'var(--radius-md)',
+               background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+               transition: 'transform 0.2s, box-shadow 0.2s',
+             }}>
+               <div style={{
+                 width: 48, height: 48, borderRadius: 'var(--radius)',
+                 background: `${f.color}15`, display: 'flex', alignItems: 'center',
+                 justifyContent: 'center', marginBottom: 16,
+               }}>
+                 <f.icon size={22} color={f.color} />
+               </div>
+               <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>{f.title}</h3>
+               <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
+             </div>
+           ))}
+         </div>
+       </section>
 
        {/* Pricing Section */}
        <section style={{

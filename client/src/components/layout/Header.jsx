@@ -6,7 +6,8 @@ import api from '../../services/api';
 import Logo from '../common/Logo';
 import {
   Search, MapPin, User, LogOut, PlusCircle,
-  Bell, MessageSquare, Briefcase, ChevronDown, ChevronRight, Menu
+  Bell, MessageSquare, Briefcase, ChevronDown, ChevronRight, Menu,
+  Sun, Moon, MessageCircle, FileText, Briefcase as WorkIcon,
 } from 'lucide-react';
 
 function Header({ onMenuToggle }) {
@@ -26,7 +27,17 @@ function Header({ onMenuToggle }) {
   const [expandedStates, setExpandedStates] = useState({});
   const [expandedLgas, setExpandedLgas] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
   const userMenuRef = useRef(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   useEffect(() => {
     api.get('/locations/hierarchy').then((res) => {
@@ -186,6 +197,13 @@ function Header({ onMenuToggle }) {
         )}
 
         <div className="header-actions">
+          <button
+            onClick={() => setDarkMode((d) => !d)}
+            className="header-theme-toggle"
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <Sun size={18} color="#f59e0b" /> : <Moon size={18} color="#6b7280" />}
+          </button>
           {user ? (
             <div className="user-dropdown-container" ref={userMenuRef}>
               <button
@@ -219,9 +237,15 @@ function Header({ onMenuToggle }) {
                       <span className="badge-dot"></span>
                     )}
                   </Link>
+                  <Link to="/quotes" className="user-dropdown-item" onClick={() => setUserMenuOpen(false)}>
+                    <FileText size={15} /> Quotes
+                  </Link>
+                  <Link to="/work-projects" className="user-dropdown-item" onClick={() => setUserMenuOpen(false)}>
+                    <WorkIcon size={15} /> Work Projects
+                  </Link>
                   {(profile?.role === 'vendor') && (
                     <Link to="/withdrawals" className="user-dropdown-item" onClick={() => setUserMenuOpen(false)}>
-                      <span aria-hidden="true" style={{ fontSize: '0.95rem' }}>₦</span> Withdrawals
+                      <span aria-hidden="true" style={{ fontSize: '0.95rem' }}>?</span> Withdrawals
                     </Link>
                   )}
                   {(profile?.role === 'admin' || profile?.role === 'super_admin') && (

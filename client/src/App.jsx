@@ -29,6 +29,8 @@ const VendorAvailability = lazy(() => import('./pages/VendorAvailability.jsx'));
 const VendorAnalytics = lazy(() => import('./pages/VendorAnalytics.jsx'));
 const TransactionDetail = lazy(() => import('./pages/TransactionDetail.jsx'));
 const HelpFAQ = lazy(() => import('./pages/HelpFAQ.jsx'));
+const Quotes = lazy(() => import('./pages/Quotes.jsx'));
+const WorkProjects = lazy(() => import('./pages/WorkProjects.jsx'));
 
 function RequireRole({ role, children }) {
   const { profile } = useAuth();
@@ -89,6 +91,8 @@ function App() {
             <Route path="/availability" element={<VendorAvailability />} />
             <Route path="/analytics" element={<VendorAnalytics />} />
             <Route path="/help" element={<HelpFAQ />} />
+            <Route path="/quotes" element={<Quotes />} />
+            <Route path="/work-projects" element={<WorkProjects />} />
           </Routes>
           </Suspense>
         </Layout>
