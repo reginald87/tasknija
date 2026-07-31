@@ -7,9 +7,12 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   googleSchema,
+  facebookSchema,
+  githubSchema,
   verifyEmailSchema,
   resendVerificationSchema,
 } from '../utils/validation.js';
+import { config } from '../config/index.js';
 import {
   signAccessToken,
   signRefreshToken,
@@ -496,6 +499,151 @@ export async function googleAuth(req, res, next) {
         refreshToken,
         user: { id: profile.id, email: profile.email },
         profile,
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function facebookAuth(req, res, next) {
+  try {
+    const parsed = facebookSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { accessToken } = parsed.data;
+
+    let profile;
+    try {
+      const fbRes = await fetch(
+        `https://graph.facebook.com/v18.0/me?fields=id,name,email,picture.width(200)&access_token=${encodeURIComponent(accessToken)}`
+      );
+      if (!fbRes.ok) throw new Error('FACEBOOK_API_ERROR');
+      const data = await fbRes.json();
+      if (!data.email) throw new Error('FACEBOOK_NO_EMAIL');
+      profile = {
+        email: data.email,
+        fullName: data.name || null,
+        avatarUrl: data.picture?.data?.url || null,
+      };
+    } catch (err) {
+      logger.warn?.({ err }, 'Facebook token verification failed');
+      return next(new AppError(401, 'INVALID_FACEBOOK_TOKEN', 'Facebook sign-in failed.'));
+    }
+
+    const user = await findOrCreateOAuthUser({
+      email: profile.email,
+      fullName: profile.fullName,
+      avatarUrl: profile.avatarUrl,
+      role: 'user',
+    });
+
+    const jwtAccessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
+
+    return res.json({
+      success: true,
+      data: {
+        accessToken: jwtAccessToken,
+        refreshToken,
+        user: { id: user.id, email: user.email },
+        profile: user,
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function githubAuth(req, res, next) {
+  try {
+    const parsed = githubSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(
+        new AppError(400, 'VALIDATION_ERROR', 'Invalid request payload',
+          parsed.error.issues.map((i) => ({
+            path: i.path.join('.'),
+            message: i.message,
+            code: i.code
+          }))
+        )
+      );
+    }
+    const { code } = parsed.data;
+
+    const githubClientId = config.githubClientId;
+    const githubClientSecret = process.env.GITHUB_CLIENT_SECRET || '';
+
+    if (!githubClientId || !githubClientSecret) {
+      return next(new AppError(500, 'GITHUB_NOT_CONFIGURED', 'GitHub OAuth is not configured.'));
+    }
+
+    let accessToken;
+    try {
+      const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          client_id: githubClientId,
+          client_secret: githubClientSecret,
+          code,
+        }),
+      });
+      if (!tokenRes.ok) throw new Error('GITHUB_TOKEN_EXCHANGE_FAILED');
+      const tokenData = await tokenRes.json();
+      accessToken = tokenData.access_token;
+      if (!accessToken) throw new Error('GITHUB_NO_ACCESS_TOKEN');
+    } catch (err) {
+      logger.warn?.({ err }, 'GitHub token exchange failed');
+      return next(new AppError(401, 'INVALID_GITHUB_CODE', 'GitHub sign-in failed.'));
+    }
+
+    let profile;
+    try {
+      const userRes = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
+        },
+      });
+      if (!userRes.ok) throw new Error('GITHUB_API_ERROR');
+      const userData = await userRes.json();
+      profile = {
+        email: userData.email || `${userData.id}@github.noreply`,
+        fullName: userData.name || userData.login || null,
+        avatarUrl: userData.avatar_url || null,
+      };
+    } catch (err) {
+      logger.warn?.({ err }, 'GitHub user fetch failed');
+      return next(new AppError(401, 'GITHUB_USER_FETCH_FAILED', 'GitHub sign-in failed.'));
+    }
+
+    const user = await findOrCreateOAuthUser({
+      email: profile.email,
+      fullName: profile.fullName,
+      avatarUrl: profile.avatarUrl,
+      role: 'user',
+    });
+
+    const jwtAccessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
+
+    return res.json({
+      success: true,
+      data: {
+        accessToken: jwtAccessToken,
+        refreshToken,
+        user: { id: user.id, email: user.email },
+        profile: user,
       }
     });
   } catch (err) {

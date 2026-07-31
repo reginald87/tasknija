@@ -128,8 +128,48 @@ export function AuthProvider({ children }) {
       await syncFromLogin({ accessToken, refreshToken, user, profile });
       return { data: { session: { access_token: accessToken, refresh_token: refreshToken }, user, profile }, error: null };
     } catch (err) {
+      const msg = err?.message || '';
+      if (msg.includes('FedCM') || msg.includes('403') || msg.includes('accounts.google.com')) {
+        return { data: null, error: { message: 'Google sign-in is temporarily unavailable. Please use email and password or try again later.' } };
+      }
       return { data: null, error: { message: err?.message || 'Google sign-in failed.' } };
     }
+  }
+
+  // Facebook OAuth via the custom JWT backend. Loads the Facebook SDK on demand.
+  async function signInWithFacebook() {
+    const clientId = import.meta.env.VITE_FACEBOOK_CLIENT_ID;
+    if (!clientId) {
+      return { data: null, error: { message: 'Facebook sign-in is not configured. Please use email and password.' } };
+    }
+    try {
+      const accessToken = await getFacebookAccessToken(clientId);
+      if (!accessToken) {
+        return { data: null, error: { message: 'Facebook sign-in was cancelled.' } };
+      }
+      const res = await api.post('/auth/facebook', { accessToken });
+      if (!res?.success) {
+        const message = res?.error?.message || 'Facebook sign-in failed.';
+        return { data: null, error: { message } };
+      }
+      const { accessToken: token, refreshToken, user, profile } = res.data;
+      await syncFromLogin({ accessToken: token, refreshToken, user, profile });
+      return { data: { session: { access_token: token, refresh_token: refreshToken }, user, profile }, error: null };
+    } catch (err) {
+      return { data: null, error: { message: err?.message || 'Facebook sign-in failed.' } };
+    }
+  }
+
+  // GitHub OAuth via the custom JWT backend. Uses a redirect-based flow.
+  function signInWithGitHub() {
+    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
+    if (!clientId) {
+      return { data: null, error: { message: 'GitHub sign-in is not configured. Please use email and password.' } };
+    }
+    const redirectUri = `${window.location.origin}/auth/github/callback`;
+    const scope = encodeURIComponent('read:user user:email');
+    const url = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+    window.location.href = url;
   }
 
   async function signOut() {
@@ -144,7 +184,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithGoogle, verifyEmailAndSignIn, resendVerificationEmail, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithGoogle, signInWithFacebook, signInWithGitHub, verifyEmailAndSignIn, resendVerificationEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -182,6 +222,47 @@ function getGoogleCredential(clientId) {
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.onerror = () => reject(new Error('Failed to load Google sign-in.'));
+      document.head.appendChild(script);
+    }
+    attempt();
+  });
+}
+
+// Loads the Facebook SDK and resolves with a Facebook access token.
+function getFacebookAccessToken(clientId) {
+  return new Promise((resolve, reject) => {
+    function attempt() {
+      if (window.FB && window.FB.login) {
+        window.FB.login(
+          (response) => {
+            if (response.authResponse && response.authResponse.accessToken) {
+              resolve(response.authResponse.accessToken);
+            } else {
+              reject(new Error('Facebook sign-in was cancelled.'));
+            }
+          },
+          { scope: 'email,public_profile' }
+        );
+        return;
+      }
+      setTimeout(attempt, 100);
+    }
+
+    if (!document.getElementById('facebook-sdk-script')) {
+      window.fbAsyncInit = () => {
+        window.FB.init({
+          appId: clientId,
+          cookie: true,
+          xfbml: true,
+          version: 'v18.0',
+        });
+      };
+      const script = document.createElement('script');
+      script.id = 'facebook-sdk-script';
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => reject(new Error('Failed to load Facebook SDK.'));
       document.head.appendChild(script);
     }
     attempt();

@@ -31,6 +31,7 @@ const TransactionDetail = lazy(() => import('./pages/TransactionDetail.jsx'));
 const HelpFAQ = lazy(() => import('./pages/HelpFAQ.jsx'));
 const Quotes = lazy(() => import('./pages/Quotes.jsx'));
 const WorkProjects = lazy(() => import('./pages/WorkProjects.jsx'));
+const GitHubCallback = lazy(() => import('./pages/GitHubCallback'));
 
 function RequireRole({ role, children }) {
   const { profile } = useAuth();
@@ -93,6 +94,7 @@ function App() {
             <Route path="/help" element={<HelpFAQ />} />
             <Route path="/quotes" element={<Quotes />} />
             <Route path="/work-projects" element={<WorkProjects />} />
+            <Route path="/auth/github/callback" element={<GitHubCallback />} />
           </Routes>
           </Suspense>
         </Layout>
